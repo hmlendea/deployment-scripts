@@ -1,1 +1,0 @@
-install-monogame-3.6.sh
