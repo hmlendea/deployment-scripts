@@ -37,7 +37,7 @@ echo " >>> Running the MonoGame post-installation script"
 # Remove the user input prompt
 cd "$MONOGAME_DIR"
 sudo chmod 777 "$POSTINSTALL_SCRIPT"
-sudo sed -i '62,66d' "$POSTINSTALL_SCRIPT"
+sudo sed -i 's/^read .* choice.*$/choice2="Y"/g' "$POSTINSTALL_SCRIPT"
 # Run the script
 sudo chmod +x "$POSTINSTALL_SCRIPT"
 sudo "./$POSTINSTALL_SCRIPT"
