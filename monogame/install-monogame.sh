@@ -18,7 +18,7 @@ echo " >>> Restoring NuGet packages"
 dotnet restore
 nuget restore
 
-echo " >>> Installing GTK#3"
+echo " >>> Installing GTK# 3"
 sudo apt-get install gtk-sharp3
 
 echo " >>> Installing FreeImage 3.17"
@@ -29,11 +29,11 @@ make
 sudo make install
 cd "$ORIGINAL_DIR"
 
-echo " >>> Installing ttf-mscorefonts-installer"
+echo " >>> Installing the Microsoft core fonts"
 echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | sudo debconf-set-selections
 sudo apt-get install ttf-mscorefonts-installer
 
-echo " >>> Installing the MonoGame SDK v$MONOGAME_VERSION Installer"
+echo " >>> Installing the MonoGame SDK, version $MONOGAME_VERSION"
 wget -c "$MONOGAME_DOWNLOAD_URL"
 chmod +x monogame-sdk.run
 sudo "./$INSTALLER_EXE" --noexec --keep --target "$MONOGAME_DIR"
@@ -58,7 +58,7 @@ for FONT in $FONTS; do
 done
 fc-cache -f -v
 
-echo " >>> Setting the correct execution permissions" # For .NET Standard / .NET Core applications
+echo " >>> Setting the correct execution permissions"
 sudo chmod +x "$MGCB_DIR/ffprobe"
 sudo chmod +x "$MGCB_DIR/ffmpeg"
 
@@ -71,8 +71,5 @@ if [ -d "$NUGET_PKG_DIR/$MGCB_PKG_NAME" ]; then
 
         mkdir -p "$MGCB_PKG_DIR/build/MGCB"
         ln -s "$MGCB_DIR" "$MGCB_PKG_DIR/build/MGCB/build"
-        ls "$MGCB_PKG_DIR/build"
-        ls "$MGCB_PKG_DIR/build/MGCB"
-        ls "$MGCB_PKG_DIR/build/MGCB/build"
     done
 fi
