@@ -12,7 +12,7 @@ ORIGINAL_DIR=$(pwd)
 FONTS_TTF_DIR="/usr/share/fonts/truetype/MonoGameFonts"
 NUGET_PKG_DIR="$HOME/.nuget/packages"
 MGCB_PKG_NAME="monogame.content.builder"
-MGCB_DIR="/opt/monogame/Tools"
+MGCB_DIR="/opt/MonoGameSDK/Tools"
 
 echo " >>> Restoring NuGet packages"
 dotnet restore
