@@ -57,7 +57,7 @@ for FONT in $FONTS; do
 done
 fc-cache -f -v
 
-if [ -d "$NUGET_PKG_DIR/MGCB_PKG_NAME" ]; then
+if [ -d "$NUGET_PKG_DIR/$MGCB_PKG_NAME" ]; then
     echo " >>> Making audio processors executable in MGCB NuGet packages" # For .NET Standard / .NET Core applications
 
     for MGCB_PKG_VER in $(ls "$NUGET_PKG_DIR/$MGCB_PKG_NAME"); do
