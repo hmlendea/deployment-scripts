@@ -52,3 +52,17 @@ for FONT in $FONTS; do
     sudo cp "$FONT" "$FONTS_TTF_DIR"
 done
 fc-cache -f -v
+
+if [ -d "$NUGET_PKG_DIR/$MGCB_PKG_NAME" ]; then
+    echo " >>> Linking installed MGCB tools to the MGCB NuGet packages" # For .NET Standard / .NET Core applications
+
+    for MGCB_PKG_VER in $(ls "$NUGET_PKG_DIR/$MGCB_PKG_NAME"); do
+        MGCB_PKG_DIR="$NUGET_PKG_DIR/$MGCB_PKG_NAME/$MGCB_PKG_VER"
+        echo "Found MGCB version $MGCB_PKG_VER"
+
+        mkdir -p "$MGCB_PKG_DIR/build/MGCB"
+        ln -s "/opt/monogame/Tools" "$MGCB_PKG_DIR/build/MGCB/build"
+        chmod +x "$MGCB_PKG_DIR/build/MGCB/build/ffprobe"
+        chmod +x "$MGCB_PKG_DIR/build/MGCB/build/ffmpeg"
+    done
+fi
