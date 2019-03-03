@@ -12,6 +12,7 @@ ORIGINAL_DIR=$(pwd)
 FONTS_TTF_DIR="/usr/share/fonts/truetype/MonoGameFonts"
 NUGET_PKG_DIR="$HOME/.nuget/packages"
 MGCB_PKG_NAME="monogame.content.builder"
+MGCB_DIR="/opt/monogame/Tools"
 
 echo " >>> Restoring NuGet packages"
 dotnet restore
@@ -57,6 +58,10 @@ for FONT in $FONTS; do
 done
 fc-cache -f -v
 
+echo " >>> Setting the correct execution permissions" # For .NET Standard / .NET Core applications
+sudo chmod +x "$MGCB_DIR/ffprobe"
+sudo chmod +x "$MGCB_DIR/ffmpeg"
+
 if [ -d "$NUGET_PKG_DIR/$MGCB_PKG_NAME" ]; then
     echo " >>> Linking installed MGCB tools to the MGCB NuGet packages" # For .NET Standard / .NET Core applications
 
@@ -65,8 +70,9 @@ if [ -d "$NUGET_PKG_DIR/$MGCB_PKG_NAME" ]; then
         echo "Found MGCB version $MGCB_PKG_VER"
 
         mkdir -p "$MGCB_PKG_DIR/build/MGCB"
-        ln -s "/opt/monogame/Tools" "$MGCB_PKG_DIR/build/MGCB/build"
-        chmod +x "$MGCB_PKG_DIR/build/MGCB/build/ffprobe"
-        chmod +x "$MGCB_PKG_DIR/build/MGCB/build/ffmpeg"
+        ln -s "$MGCB_DIR" "$MGCB_PKG_DIR/build/MGCB/build"
+        ls "$MGCB_PKG_DIR/build"
+        ls "$MGCB_PKG_DIR/build/MGCB"
+        ls "$MGCB_PKG_DIR/build/MGCB/build"
     done
 fi
