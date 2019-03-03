@@ -10,6 +10,8 @@ MONOGAME_DIR=$(pwd)"/monogame"
 POSTINSTALL_SCRIPT="postinstall.sh"
 ORIGINAL_DIR=$(pwd)
 FONTS_TTF_DIR="/usr/share/fonts/truetype/MonoGameFonts"
+NUGET_PKG_DIR="$HOME/.nuget/packages"
+MGCB_PKG_NAME="monogame.content.builder"
 
 echo " >>> Installing GTK#3"
 sudo apt-get install gtk-sharp3
@@ -50,3 +52,15 @@ for FONT in $FONTS; do
     sudo cp "$FONT" "$FONTS_TTF_DIR"
 done
 fc-cache -f -v
+
+if [ -d "$NUGET_PKG_DIR/MGCB_PKG_NAME" ]; then
+    echo " >>> Making audio processors executable in MGCB NuGet packages" # For .NET Standard / .NET Core applications
+
+    for MGCB_PKG_VER in $(ls "$NUGET_PKG_DIR/$MGCB_PKG_NAME"); do
+        MGCB_PKG_DIR="$NUGET_PKG_DIR/$MGCB_PKG_NAME/$MGCB_PKG_VER"
+        echo "Found MGCB version $MGCB_PKG_VER"
+
+        chmod +x "$MGCB_PKG_DIR/build/MGCB/build/ffprobe"
+        chmod +x "$MGCB_PKG_DIR/build/MGCB/build/ffmpeg"
+    done
+fi
