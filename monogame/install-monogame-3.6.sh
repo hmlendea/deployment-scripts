@@ -13,6 +13,10 @@ FONTS_TTF_DIR="/usr/share/fonts/truetype/MonoGameFonts"
 NUGET_PKG_DIR="$HOME/.nuget/packages"
 MGCB_PKG_NAME="monogame.content.builder"
 
+echo " >>> Restoring NuGet packages"
+dotnet restore
+nuget restore
+
 echo " >>> Installing GTK#3"
 sudo apt-get install gtk-sharp3
 
@@ -43,7 +47,7 @@ sudo chmod +x "$POSTINSTALL_SCRIPT"
 sudo "./$POSTINSTALL_SCRIPT"
 cd "$ORIGINAL_DIR"
 
-echo " >>> Installing the fonts distributed in the solution"
+echo " >>> Installing the TTF fonts distributed in the solution"
 sudo mkdir -p "$FONTS_TTF_DIR"
 # TODO: Handle spaces in the paths
 FONTS=$(find . -type f \( -name "*.ttf" -or -name "*.TTF" \))
