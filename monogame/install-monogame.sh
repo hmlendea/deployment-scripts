@@ -13,6 +13,10 @@ FONTS_TTF_DIR="/usr/share/fonts/truetype/MonoGameFonts"
 NUGET_PKG_DIR="$HOME/.nuget/packages"
 MGCB_PKG_NAME="monogame.content.builder"
 
+echo " >>> Restoring NuGet packages"
+dotnet restore
+nuget restore
+
 echo " >>> Installing GTK#3"
 sudo apt-get install gtk-sharp3
 
