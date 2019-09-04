@@ -19,7 +19,7 @@ function throw-exception {
 
 function get-config-value {
     CONFIG_KEY="$1"
-    CONFIG_VALUE=$(grep "^${CONFIG_KEY}" "${DEPLOYMENT_CONFIGURATION_FILE_PATH}" | awk -F= '{print $2}'
+    CONFIG_VALUE=$(grep "^${CONFIG_KEY}" "${DEPLOYMENT_CONFIGURATION_FILE_PATH}" | awk -F= '{print $2}')
     echo "${CONFIG_VALUE}"
 }
 
@@ -75,25 +75,49 @@ if [ "${NEEDS_UPDATE}" -eq "0" ]; then
     fi
 fi
 
+function download-package {
+    echo "  > Downloading the latest version..."
+
+    PACKAGE_FILE_NAME="${SERVICE_NAME}_${LATEST_VERSION}_${PLATFORM}.zip"
+    PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
+    PACKAGE_URL="https://github.com/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/download/v${LATEST_VERSION}/${PACKAGE_FILE_NAME}"
+    IS_SUCCESS=0
+
+    wget -q -c "${PACKAGE_URL}" -O "${PACKAGE_FILE_PATH}" && IS_SUCCESS=1
+
+    if [ $IS_SUCCESS == 0 ]; then
+        throw-exception "Failed to download the service package!"
+    fi
+}
+
+function extract-package {
+    echo "  > Extracting the package..."
+
+    PACKAGE_FILE_NAME="${SERVICE_NAME}_${LATEST_VERSION}_${PLATFORM}.zip"
+    PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
+    IS_SUCCESS=0
+
+    unzip -qq "${PACKAGE_FILE_PATH}" -d "${SERVICE_BINARIES_DIRECTORY}" && IS_SUCCESS=1
+    rm "${PACKAGE_FILE_PATH}"
+
+    if [ $IS_SUCCESS == 0 ]; then
+        throw-exception "Failed to extract the service package!"
+    fi
+
+    printf "${LATEST_VERSION}" > "${SERVICE_VERSION_FILE_LOCATION}"
+}
+
 if [ "${NEEDS_UPDATE}" -eq "1" ]; then
     echo "> Updating the service..."
 
-    PACKAGE_FILE_NAME="${SERVICE_NAME}_${LATEST_VERSION}_${PLATFORM}.zip"
-    PACKAGE_URL="https://github.com/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/download/v${LATEST_VERSION}/${PACKAGE_FILE_NAME}"
-    PACKAGE_FILE_LOCATION="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
 
     if [ -e "${SERVICE_BINARIES_DIRECTORY}/*" ]; then
         echo "  > Removing the existing version..."
         rm -rf "${SERVICE_BINARIES_DIRECTORY}/*"
     fi
 
-    echo "  > Downloading the latest version..."
-    wget -q -c "${PACKAGE_URL}" -O "${PACKAGE_FILE_LOCATION}"
-
-    echo "  > Extracting the package..."
-    unzip -qq "${PACKAGE_FILE_LOCATION}" -d "${SERVICE_BINARIES_DIRECTORY}"
-    rm "${PACKAGE_FILE_LOCATION}"
-    printf "${LATEST_VERSION}" > "${SERVICE_VERSION_FILE_LOCATION}"
+    download-package
+    extract-package
 fi
 
 if [ $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json" | xargs cat | grep -c "\[\[") -gt 0 ] || [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
