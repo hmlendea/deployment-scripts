@@ -111,9 +111,10 @@ if [ "${NEEDS_UPDATE}" -eq "1" ]; then
     echo "> Updating the service..."
 
 
-    if [ -e "${SERVICE_BINARIES_DIRECTORY}/*" ]; then
+    if [ -d "${SERVICE_BINARIES_DIRECTORY}" ]; then
         echo "  > Removing the existing version..."
-        rm -rf "${SERVICE_BINARIES_DIRECTORY}/*"
+        rm -rf "${SERVICE_BINARIES_DIRECTORY}"
+        mkdir "${SERVICE_BINARIES_DIRECTORY}"
     fi
 
     download-package
