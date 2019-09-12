@@ -8,7 +8,6 @@ done
 SCRIPT_DIRECTORY_PATH="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
 SERVICE_NAME=$1 && shift
-SERVICE_EXECUTABLE_FILE_NAME=$1 && shift
 
 DEPLOYMENT_CONFIGURATION_FILE_PATH="${SCRIPT_DIRECTORY_PATH}/config.conf"
 
@@ -34,6 +33,8 @@ fi
 
 GITHUB_USERNAME=$(get-config-value "GitHubUsername")
 
+[ -z "${SERVICE_NAME}" ]                    && throw-exception "The service name cannot be empty"
+
 DEPLOYMENT_ROOT_DIRECTORY=$(get-config-value "DeploymentRootDirectory")
 DEPLOYMENT_APPSETTINGS_FILE_PATH="${DEPLOYMENT_ROOT_DIRECTORY}/appsettings.csv"
 SERVICE_ROOT_DIRECTORY="${DEPLOYMENT_ROOT_DIRECTORY}/${SERVICE_NAME}"
@@ -41,10 +42,6 @@ SERVICE_BINARIES_DIRECTORY="${SERVICE_ROOT_DIRECTORY}/bin"
 SERVICE_TEMPORARY_DIRECTORY="${SERVICE_ROOT_DIRECTORY}/tmp"
 SERVICE_VERSION_FILE_LOCATION="${SERVICE_ROOT_DIRECTORY}/version"
 SERVICE_LAUNCHER_FILE_LOCATION="${SERVICE_ROOT_DIRECTORY}/start"
-SERVICE_EXECUTABLE_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}"
-
-[ -z "${SERVICE_NAME}" ]                    && throw-exception "The service name cannot be empty"
-[ -z "${SERVICE_EXECUTABLE_FILE_NAME}" ]    && throw-exception "The executable name cannot be empty"
 
 NEEDS_UPDATE=0
 
@@ -54,9 +51,8 @@ echo "> Ensuring the file structure..."
 [ ! -d "${SERVICE_TEMPORARY_DIRECTORY}" ]   && mkdir -p "${SERVICE_TEMPORARY_DIRECTORY}"
 [ ! -f "${SERVICE_VERSION_FILE_LOCATION}" ] && touch "${SERVICE_VERSION_FILE_LOCATION}"
 
-
-if [ ! -f "${SERVICE_EXECUTABLE_FILE_LOCATION}" ]; then
-    echo "  > Executable file missing!"
+if [ -z $(cat "${SERVICE_VERSION_FILE_LOCATION}") ] || [ ! "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ]; then
+    echo "  > Service not installed!"
     echo "    > Update required!"
     NEEDS_UPDATE=1
 fi
@@ -111,7 +107,7 @@ if [ "${NEEDS_UPDATE}" -eq "1" ]; then
     echo "> Updating the service..."
 
 
-    if [ -d "${SERVICE_BINARIES_DIRECTORY}" ]; then
+    if [ "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ]; then
         echo "  > Removing the existing version..."
         rm -rf "${SERVICE_BINARIES_DIRECTORY}"
         mkdir "${SERVICE_BINARIES_DIRECTORY}"
@@ -120,6 +116,9 @@ if [ "${NEEDS_UPDATE}" -eq "1" ]; then
     download-package
     extract-package
 fi
+
+SERVICE_EXECUTABLE_FILE_NAME=$(ls "${SERVICE_BINARIES_DIRECTORY}" | grep ".deps.json" | sed 's/\.deps\.json$//g')
+SERVICE_EXECUTABLE_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}"
 
 if [ $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json" | xargs cat | grep -c "\[\[") -gt 0 ] || [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
     echo "> Setting up application settings..."

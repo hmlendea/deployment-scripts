@@ -8,8 +8,7 @@ done
 SCRIPT_DIRECTORY_PATH="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
 SERVICE_NAME="$1"
-EXECUTABLE_NAME="$2"
-OTHER_ARGS="${*:3}"
+OTHER_ARGS="${*:2}"
 
 DEPLOYMENT_CONFIGURATION_FILE_PATH="${SCRIPT_DIRECTORY_PATH}/config.conf"
 
@@ -37,12 +36,12 @@ SERVICE_FILE_PATH="/lib/systemd/system/${SERVICE_FILE_NAME}"
 touch "${SERVICE_FILE_PATH}"
 
 printf "[Unit]\n" >> "${SERVICE_FILE_PATH}"
-printf "Description=${EXECUTABLE_NAME}\n" >> "${SERVICE_FILE_PATH}"
+printf "Description=${SERVICE_NAME} service\n" >> "${SERVICE_FILE_PATH}"
 printf "After=network.target\n" >> "${SERVICE_FILE_PATH}"
 printf "\n" >> "${SERVICE_FILE_PATH}"
 printf "[Service]\n" >> "${SERVICE_FILE_PATH}"
 printf "WorkingDirectory=${DEPLOYMENT_ROOT_DIRECTORY_PATH}\n" >> "${SERVICE_FILE_PATH}"
-printf "ExecStart=${SERVICE_BOOT_FILE_PATH} ${SERVICE_NAME} ${EXECUTABLE_NAME} ${OTHER_ARGS}\n" >> "${SERVICE_FILE_PATH}"
+printf "ExecStart=${SERVICE_BOOT_FILE_PATH} ${SERVICE_NAME} ${OTHER_ARGS}\n" >> "${SERVICE_FILE_PATH}"
 printf "User=${SUDO_USER}\n" >> "${SERVICE_FILE_PATH}"
 printf "\n" >> "${SERVICE_FILE_PATH}"
 printf "[Install]\n" >> "${SERVICE_FILE_PATH}"
