@@ -51,7 +51,9 @@ echo "> Ensuring the file structure..."
 [ ! -d "${SERVICE_TEMPORARY_DIRECTORY}" ]   && mkdir -p "${SERVICE_TEMPORARY_DIRECTORY}"
 [ ! -f "${SERVICE_VERSION_FILE_LOCATION}" ] && touch "${SERVICE_VERSION_FILE_LOCATION}"
 
-if [ -z $(cat "${SERVICE_VERSION_FILE_LOCATION}") ] || [ ! "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ]; then
+if [ -z $(cat "${SERVICE_VERSION_FILE_LOCATION}") ] || \
+   [ ! "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ]   || \
+   [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]     ; then
     echo "  > Service not installed!"
     echo "    > Update required!"
     NEEDS_UPDATE=1
@@ -59,6 +61,11 @@ fi
 
 echo "> Retrieving version information..."
 LATEST_VERSION=$(curl --silent "https://github.com/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/latest" | sed 's/^.*<a href=".*\/tag\/v\(.*\)">redirected.*$/\1/')
+
+if [[ "${LATEST_VERSION}" == "Not Found" ]]; then
+    throw-exception "Cannot find a stable version to download"
+fi
+
 echo "  > Latest version: $LATEST_VERSION"
 
 if [ "${NEEDS_UPDATE}" -eq "0" ]; then
@@ -165,7 +172,7 @@ if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
 
         printf "ASPNETCORE_URLS=\"http://*:${PORT_NUMBER}\" " >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     fi
-    echo "\"${SERVICE_EXECUTABLE_FILE_LOCATION}\" "$@"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
+    echo "\"${SERVICE_EXECUTABLE_FILE_LOCATION}\" \$@" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "cd \"\${PREVIOUS_DIRECTORY_LOCATION}\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     chmod +x "${SERVICE_LAUNCHER_FILE_LOCATION}"
 fi
@@ -174,4 +181,4 @@ fi
 [ ! -x "${SERVICE_LAUNCHER_FILE_LOCATION}" ]    && chmod +x "${SERVICE_LAUNCHER_FILE_LOCATION}"
 
 echo "> Launching the service..."
-sh "${SERVICE_LAUNCHER_FILE_LOCATION}"
+sh "${SERVICE_LAUNCHER_FILE_LOCATION}" $@
