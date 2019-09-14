@@ -35,17 +35,24 @@ SERVICE_FILE_PATH="/lib/systemd/system/${SERVICE_FILE_NAME}"
 
 touch "${SERVICE_FILE_PATH}"
 
-printf "[Unit]\n" >> "${SERVICE_FILE_PATH}"
-printf "Description=${SERVICE_NAME} service\n" >> "${SERVICE_FILE_PATH}"
-printf "After=network.target\n" >> "${SERVICE_FILE_PATH}"
-printf "\n" >> "${SERVICE_FILE_PATH}"
-printf "[Service]\n" >> "${SERVICE_FILE_PATH}"
-printf "WorkingDirectory=${DEPLOYMENT_ROOT_DIRECTORY_PATH}\n" >> "${SERVICE_FILE_PATH}"
-printf "ExecStart=${SERVICE_BOOT_FILE_PATH} ${SERVICE_NAME} ${OTHER_ARGS}\n" >> "${SERVICE_FILE_PATH}"
-printf "User=${SUDO_USER}\n" >> "${SERVICE_FILE_PATH}"
-printf "\n" >> "${SERVICE_FILE_PATH}"
-printf "[Install]\n" >> "${SERVICE_FILE_PATH}"
-printf "WantedBy=multi-user.target\n" >> "${SERVICE_FILE_PATH}"
+function write-line {
+    printf "$@\n" >> "${SERVICE_FILE_PATH}"
+}
+
+
+write-line "Description=${SERVICE_NAME} service"
+write-line "After=network.target"
+write-line ""
+write-line "[Service]"
+write-line "WorkingDirectory=${DEPLOYMENT_ROOT_DIRECTORY_PATH}"
+write-line "ExecStart=${SERVICE_BOOT_FILE_PATH} ${SERVICE_NAME} ${OTHER_ARGS}"
+write-line "User=${SUDO_USER}"
+write-line "MemoryAccounting=yes"
+write-line "MemoryMax=200M"
+write-line "CPUQuota=60%"
+write-line ""
+write-line "[Install]"
+write-line "WantedBy=multi-user.target"
 
 chmod +x "${SERVICE_FILE_PATH}"
 
