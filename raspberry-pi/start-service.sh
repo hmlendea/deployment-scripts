@@ -127,23 +127,28 @@ fi
 SERVICE_EXECUTABLE_FILE_NAME=$(ls "${SERVICE_BINARIES_DIRECTORY}" | grep ".deps.json" | sed 's/\.deps\.json$//g')
 SERVICE_EXECUTABLE_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}"
 
-if [ $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json" | xargs cat | grep -c "\[\[") -gt 0 ] || [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
-    echo "> Setting up application settings..."
+echo "> Setting up application settings..."
 
-    for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
-        APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
-        APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $2}')
-        APPSETTING_VAL=$(echo "${APPSETTING}" | awk -F, '{print $3}')
+for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
+    APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
+    APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
+    APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $3}')
+    APPSETTING_VAL=$(echo "${APPSETTING}" | awk -F, '{print $4}')
 
-        if [[ "${APPSETTING_APP}" != "ALL" ]] && [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]]; then
-            continue
-        fi
+    APPSETTING_VAL=$(echo "${APPSETTING_VAL}" | sed 's/%SERVICE_NAME%/'${SERVICE_NAME}'/g')
 
-        for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json") ; do
+    if [[ "${APPSETTING_APP}" != "ALL" ]] && [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]]; then
+        continue
+    fi
+
+    for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json") ; do
+        if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
+            sed 's|\"'${APPSETTING_KEY}'\": *\"[^\"]*\"|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\"|g' -i "${APPSETTINGS_FILE}"
+        elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
             sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
-        done
+        fi
     done
-fi
+done
 
 if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
     echo "> Building the launcher script..."
