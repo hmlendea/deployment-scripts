@@ -173,7 +173,7 @@ if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
     if [[ "${APP_TYPE}" = "ASP_DOTNET_CORE" ]]; then
         PORT_NUMBER=${1} && shift
 
-        ! [[ ${PORT_NUMBER} =~ '^[0-9]+$' ]] && throw-exception "The specified port number is invalid: ${PORT_NUMBER}"
+        [[ ${PORT_NUMBER} =~ [^0-9]+ ]] && throw-exception "The specified port number is invalid: ${PORT_NUMBER}"
         [ -z "${PORT_NUMBER}" ] && throw-exception "The port number cannot be empty"
 
         printf "ASPNETCORE_URLS=\"http://*:${PORT_NUMBER}\" " >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
