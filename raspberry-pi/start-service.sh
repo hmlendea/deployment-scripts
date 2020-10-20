@@ -7,7 +7,7 @@ while [ -h "$SOURCE" ]; do
 done
 SCRIPT_DIRECTORY_PATH="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
-SERVICE_NAME=$1 && shift
+SERVICE_NAME=${1} && shift
 
 DEPLOYMENT_CONFIGURATION_FILE_PATH="${SCRIPT_DIRECTORY_PATH}/config.conf"
 
@@ -17,7 +17,7 @@ function throw-exception {
 }
 
 function get-config-value {
-    CONFIG_KEY="$1"
+    CONFIG_KEY="${1}"
     CONFIG_VALUE=$(grep "^${CONFIG_KEY}" "${DEPLOYMENT_CONFIGURATION_FILE_PATH}" | awk -F= '{print $2}')
     echo "${CONFIG_VALUE}"
 }
@@ -171,8 +171,9 @@ if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
     echo "PREVIOUS_DIRECTORY_LOCATION=\"$(pwd)\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "cd \"${SERVICE_BINARIES_DIRECTORY}\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     if [[ "${APP_TYPE}" = "ASP_DOTNET_CORE" ]]; then
-        PORT_NUMBER=$1 && shift
+        PORT_NUMBER=${1} && shift
 
+        ! [[ ${PORT_NUMBER} =~ '^[0-9]+$' ]] && throw-exception "The specified port number is invalid: ${PORT_NUMBER}"
         [ -z "${PORT_NUMBER}" ] && throw-exception "The port number cannot be empty"
 
         printf "ASPNETCORE_URLS=\"http://*:${PORT_NUMBER}\" " >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
