@@ -94,10 +94,17 @@ function download-package {
     PACKAGE_FILE_NAME="${SERVICE_NAME}_${LATEST_VERSION}_${PLATFORM}.zip"
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
 
+    TAG_ID=$(curl \
+                --silent \
+                --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+                --request GET \
+                "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases" | \
+                    jq --raw-output ".[] | select(.tag_name==\"v${LATEST_VERSION}\").id")
+
     DOWNLOAD_URL=$(curl \
                     --silent \
                     --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-                    "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/latest" | \
+                    "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/${TAG_ID}" | \
                         jq ".assets[] | select(.name==\"${PACKAGE_FILE_NAME}\").url" |
                         sed 's/\"//g')
 
