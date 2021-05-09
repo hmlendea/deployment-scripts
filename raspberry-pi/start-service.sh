@@ -32,8 +32,9 @@ else
 fi
 
 GITHUB_USERNAME=$(get-config-value "GitHubUsername")
+GITHUB_ACCESS_TOKEN=$(get-config-value "GitHubAccessToken")
 
-[ -z "${SERVICE_NAME}" ]                    && throw-exception "The service name cannot be empty"
+[ -z "${SERVICE_NAME}" ] && throw-exception "The service name cannot be empty"
 
 DEPLOYMENT_ROOT_DIRECTORY=$(get-config-value "DeploymentRootDirectory")
 DEPLOYMENT_APPSETTINGS_FILE_PATH="${DEPLOYMENT_ROOT_DIRECTORY}/appsettings.csv"
@@ -59,8 +60,17 @@ if [ -z $(cat "${SERVICE_VERSION_FILE_LOCATION}") ] || \
     NEEDS_UPDATE=1
 fi
 
+function getLatestReleaseVersion() {
+    curl \
+        --silent \
+        --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+        "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/latest" | \
+            grep "tag_name" | \
+            sed 's/.*: \"v\([^\"]*\).*/\1/g'
+}
+
 echo "> Retrieving version information..."
-LATEST_VERSION=$(curl --silent "https://github.com/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/latest" | sed 's/^.*<a href=".*\/tag\/v\(.*\)">redirected.*$/\1/')
+LATEST_VERSION=$(getLatestReleaseVersion)
 
 if [[ "${LATEST_VERSION}" == "Not Found" ]]; then
     throw-exception "Cannot find a stable version to download"
@@ -83,10 +93,30 @@ function download-package {
 
     PACKAGE_FILE_NAME="${SERVICE_NAME}_${LATEST_VERSION}_${PLATFORM}.zip"
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
-    PACKAGE_URL="https://github.com/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/download/v${LATEST_VERSION}/${PACKAGE_FILE_NAME}"
+
+    DOWNLOAD_URL=$(curl \
+                    --silent \
+                    --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+                    "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/latest" | \
+                        jq ".assets[] | select(.name==\"${PACKAGE_FILE_NAME}\").url" |
+                        sed 's/\"//g')
+
+    REDIRECT_URL=$(curl \
+                    --silent \
+                    --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+                    --header "Accept: application/octet-stream" \
+                    --request GET \
+                    --write-out "%{REDIRECT_URL}" \
+                    "${DOWNLOAD_URL}")
+
     IS_SUCCESS=0
 
-    wget -q -c "${PACKAGE_URL}" -O "${PACKAGE_FILE_PATH}" && IS_SUCCESS=1
+    curl \
+        --silent \
+        --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+        --request GET \
+        --output "${PACKAGE_FILE_PATH}" \
+        "${REDIRECT_URL}" && IS_SUCCESS=1
 
     if [ $IS_SUCCESS == 0 ]; then
         throw-exception "Failed to download the service package!"
