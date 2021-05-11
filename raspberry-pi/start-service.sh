@@ -7,8 +7,6 @@ while [ -h "$SOURCE" ]; do
 done
 SCRIPT_DIRECTORY_PATH="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
 
-SERVICE_NAME=${1} && shift
-
 DEPLOYMENT_CONFIGURATION_FILE_PATH="${SCRIPT_DIRECTORY_PATH}/config.conf"
 
 function throw-exception {
@@ -33,8 +31,17 @@ fi
 
 GITHUB_USERNAME=$(get-config-value "GitHubUsername")
 GITHUB_ACCESS_TOKEN=$(get-config-value "GitHubAccessToken")
+GITHUB_REPOSITORY=${1} && shift
 
-[ -z "${SERVICE_NAME}" ] && throw-exception "The service name cannot be empty"
+[ -z "${GITHUB_USERNAME}" ] && throw-exception "The GitHub username cannot be empty"
+[ -z "${GITHUB_ACCESS_TOKEN}" ] && throw-exception "The GitHub access token cannot be empty"
+[ -z "${GITHUB_REPOSITORY}" ] && throw-exception "The GitHub repository name cannot be empty"
+
+if [ -n "${SERVICE_INSTANCE_NAME}" ]; then
+    SERVICE_NAME="${GITHUB_REPOSITORY}_${SERVICE_INSTANCE_NAME}"
+else
+    SERVICE_NAME="${GITHUB_REPOSITORY}"
+fi
 
 DEPLOYMENT_ROOT_DIRECTORY=$(get-config-value "DeploymentRootDirectory")
 DEPLOYMENT_APPSETTINGS_FILE_PATH="${DEPLOYMENT_ROOT_DIRECTORY}/appsettings.csv"
@@ -64,7 +71,7 @@ function getLatestReleaseVersion() {
     curl \
         --silent \
         --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-        "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/latest" | \
+        "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/latest" | \
             grep "tag_name" | \
             sed 's/.*: \"v\([^\"]*\).*/\1/g'
 }
@@ -91,20 +98,20 @@ fi
 function download-package {
     echo "  > Downloading the latest version..."
 
-    PACKAGE_FILE_NAME="${SERVICE_NAME}_${LATEST_VERSION}_${PLATFORM}.zip"
+    PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
 
     TAG_ID=$(curl \
                 --silent \
                 --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
                 --request GET \
-                "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases" | \
+                "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases" | \
                     jq --raw-output ".[] | select(.tag_name==\"v${LATEST_VERSION}\").id")
 
     DOWNLOAD_URL=$(curl \
                     --silent \
                     --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-                    "https://api.github.com/repos/${GITHUB_USERNAME}/${SERVICE_NAME}/releases/${TAG_ID}" | \
+                    "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/${TAG_ID}" | \
                         jq ".assets[] | select(.name==\"${PACKAGE_FILE_NAME}\").url" |
                         sed 's/\"//g')
 
@@ -133,7 +140,7 @@ function download-package {
 function extract-package {
     echo "  > Extracting the package..."
 
-    PACKAGE_FILE_NAME="${SERVICE_NAME}_${LATEST_VERSION}_${PLATFORM}.zip"
+    PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
     IS_SUCCESS=0
 
@@ -174,7 +181,9 @@ for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
 
     APPSETTING_VAL=$(echo "${APPSETTING_VAL}" | sed 's/%SERVICE_NAME%/'${SERVICE_NAME}'/g')
 
-    if [[ "${APPSETTING_APP}" != "ALL" ]] && [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]]; then
+    if [[ "${APPSETTING_APP}" != "ALL" ]] && \
+       [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]] && \
+       [[ "${APPSETTING_APP}" != "${GITHUB_REPOSITORY}" ]]; then
         continue
     fi
 
