@@ -70,6 +70,7 @@ build-release linux-arm
 build-release linux-arm64
 build-release linux-x64
 build-release osx-x64
+build-release win-arm64
 build-release win-x64
 
 cleanup
