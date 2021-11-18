@@ -1,16 +1,23 @@
 #!/bin/bash
 
-APP_NAME=$(git remote -vv | grep fetch | sed 's|.*http.*/\(.*\)\.git.*|\1|')
 VERSION="$1"
-RELEASE_DIR_RELATIVE="bin/Release"
-PUBLISH_DIR_RELATIVE="${RELEASE_DIR_RELATIVE}/publish-script-output"
-RELEASE_DIR="$(pwd)/$RELEASE_DIR_RELATIVE"
-PUBLISH_DIR="$(pwd)/$PUBLISH_DIR_RELATIVE"
 
 if [ -z "$VERSION" ]; then
     echo "PLEASE PROVIDE A VERSION !!!"
     exit 1
 fi
+
+APP_NAME=$(git remote -vv | grep fetch | sed 's|.*http.*/\(.*\)\.git.*|\1|')
+
+if [ -f *.sln ]; then
+    MAIN_PROJECT=$(ls *.sln | head -n 1 | xargs cat | grep "^Project" | head -n 1 | awk -F"=" '{print $2}' | awk -F"," '{print $1}' | sed -e 's/\"*//g' -e 's/\s*//g')
+    cd "${MAIN_PROJECT}"
+fi
+
+RELEASE_DIR_RELATIVE="bin/Release"
+PUBLISH_DIR_RELATIVE="${RELEASE_DIR_RELATIVE}/publish-script-output"
+RELEASE_DIR="$(pwd)/$RELEASE_DIR_RELATIVE"
+PUBLISH_DIR="$(pwd)/$PUBLISH_DIR_RELATIVE"
 
 function package {
     ARCH="$1"
