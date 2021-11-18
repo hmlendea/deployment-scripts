@@ -3,7 +3,7 @@
 VERSION="${1}"
 
 if [ -z "${VERSION}" ]; then
-    echo "PLEASE PROVIDE A VERSION !!!"
+    echo "ERROR: Please specify a version"
     exit 1
 fi
 
@@ -33,13 +33,19 @@ function package {
 }
 
 function dotnet-pub {
-    ARCH="${1}"
-    OUTPUT_DIR="${PUBLISH_DIR}/${ARCH}"
+    local ARCH="${1}"
+    local OUTPUT_DIR="${PUBLISH_DIR}/${ARCH}"
 
     [ ! -d "${OUTPUT_DIR}" ] && mkdir -p "${OUTPUT_DIR}"
     cd "${PROJECT_SOURCE_DIR}" || exit
     
-    dotnet publish -c Release -r "${ARCH}" -o "${OUTPUT_DIR}" --self-contained=true /p:TrimUnusedDependencies=true /p:LinkDuringPublish=true
+    dotnet publish \
+        --configuration Release \
+        --runtime "${ARCH}" \
+        --output "${OUTPUT_DIR}" \
+        --self-contained true \
+        /p:TrimUnusedDependencies=true \
+        /p:LinkDuringPublish=true
 }
 
 function prepare {
@@ -55,20 +61,25 @@ function cleanup {
     dotnet remove package Microsoft.Packaging.Tools.Trimming
     #dotnet remove package ILLink.Tasks
 
-    echo "Cleaning build output"
+    echo "Cleaning the build output"
     rm -rf "${PUBLISH_DIR}"
+}
+
+function build-release {
+    local ARCH="${1}"
+
+    dotnet-pub "${ARCH}"
+    package "${ARCH}"
 }
 
 prepare
 
-dotnet-pub win-x64
-package win-x64
-
-dotnet-pub linux-x64
-package linux-x64
-
-dotnet-pub osx-x64
-package osx-x64
+build-release linux-arm
+build-release linux-arm64
+build-release linux-x64
+build-release osx-x64
+build-release win-arm64
+build-release win-x64
 
 cleanup
 

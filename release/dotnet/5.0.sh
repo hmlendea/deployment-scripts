@@ -15,15 +15,13 @@ if [ -f *.sln ]; then
 fi
 
 PROJECT_SOURCE_DIR="$(pwd)"
-RELEASE_DIR_RELATIVE="bin/Release"
-PUBLISH_DIR_RELATIVE="${RELEASE_DIR_RELATIVE}/publish-script-output"
-RELEASE_DIR="$(pwd)/${RELEASE_DIR_RELATIVE}"
-PUBLISH_DIR="$(pwd)/${PUBLISH_DIR_RELATIVE}"
+BIN_RELEASE_DIR="${PROJECT_SOURCE_DIR}/bin/Release"
+PUBLISH_DIR="${BIN_RELEASE_DIR}/.publish-script-output"
 
 function package {
     local ARCH="${1}"
     local OUTPUT_DIR="${PUBLISH_DIR}/${ARCH}"
-    local OUTPUT_FILE="${RELEASE_DIR}/${APP_NAME}_${VERSION}_${ARCH}.zip"
+    local OUTPUT_FILE="${BIN_RELEASE_DIR}/${APP_NAME}_${VERSION}_${ARCH}.zip"
 
     echo "Packaging \"${OUTPUT_DIR}\" to \"${OUTPUT_FILE}\""
 
@@ -31,12 +29,12 @@ function package {
 
     cd "${OUTPUT_DIR}" || exit
     zip -q -9 -r "${OUTPUT_FILE}" .
-    cd - || exit
+    cd "${PROJECT_SOURCE_DIR}" || exit
 }
 
 function dotnet-pub {
     local ARCH="${1}"
-    local OUTPUT_DIR="${PUBLISH_DIR_RELATIVE}/${ARCH}"
+    local OUTPUT_DIR="${PUBLISH_DIR}/${ARCH}"
 
     [ ! -d "${OUTPUT_DIR}" ] && mkdir -p "${OUTPUT_DIR}"
     cd "${PROJECT_SOURCE_DIR}" || exit
@@ -50,8 +48,12 @@ function dotnet-pub {
         /p:LinkDuringPublish=true
 }
 
+function prepare {
+    mkdir -p "${PUBLISH_DIR}"
+}
+
 function cleanup {
-    echo "Cleaning build output"
+    echo "Cleaning the build output"
     rm -rf "${PUBLISH_DIR}"
 }
 
@@ -62,6 +64,8 @@ function build-release {
     package "${ARCH}"
 }
 
+prepare
+
 build-release linux-arm
 build-release linux-arm64
 build-release linux-x64
@@ -69,3 +73,4 @@ build-release osx-x64
 build-release win-x64
 
 cleanup
+
