@@ -14,6 +14,7 @@ if [ -f *.sln ]; then
     cd "${MAIN_PROJECT}"
 fi
 
+PROJECT_SOURCE_DIR="$(pwd)"
 RELEASE_DIR_RELATIVE="bin/Release"
 PUBLISH_DIR_RELATIVE="${RELEASE_DIR_RELATIVE}/publish-script-output"
 RELEASE_DIR="$(pwd)/${RELEASE_DIR_RELATIVE}"
@@ -36,6 +37,9 @@ function package {
 function dotnet-pub {
     local ARCH="${1}"
     local OUTPUT_DIR="${PUBLISH_DIR_RELATIVE}/${ARCH}"
+
+    [ ! -d "${OUTPUT_DIR}" ] && mkdir -p "${OUTPUT_DIR}"
+    cd "${PROJECT_SOURCE_DIR}" || exit
 
     dotnet publish \
         --configuration Release \
