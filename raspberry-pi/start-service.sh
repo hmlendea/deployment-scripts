@@ -98,41 +98,28 @@ fi
 function download-package {
     echo "  > Downloading the latest version..."
 
-    PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
-    PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
+    local PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
+    local PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
 
-    TAG_ID=$(curl \
-                --silent \
-                --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-                --request GET \
-                "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases" | \
-                    jq --raw-output ".[] | select(.tag_name==\"v${LATEST_VERSION}\").id")
+    local ASSET_ID=$(curl \
+                        -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+                        -H "Accept: application/vnd.github.v3.raw" \
+                        -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
+                    jq ".assets | map(select(.name == \"${PACKAGE_FILE_NAME}\"))[0].id")
 
-    DOWNLOAD_URL=$(curl \
-                    --silent \
-                    --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-                    "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/${TAG_ID}" | \
-                        jq ".assets[] | select(.name==\"${PACKAGE_FILE_NAME}\").url" |
-                        sed 's/\"//g')
+    if [ -z "${ASSET_ID}" ] || [ "${ASSET_ID}" = "null" ]; then
+        throw-exception "Failed to retrieve the GitHub Asset ID for ${PACKAGE_FILE_NAME}"
+    fi
 
-    REDIRECT_URL=$(curl \
-                    --silent \
-                    --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-                    --header "Accept: application/octet-stream" \
-                    --request GET \
-                    --write-out "%{REDIRECT_URL}" \
-                    "${DOWNLOAD_URL}")
+    wget \
+        --quiet \
+        --auth-no-challenge \
+        --header='Accept:application/octet-stream' \
+        "https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+        --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
 
-    IS_SUCCESS=0
-
-    curl \
-        --silent \
-        --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-        --request GET \
-        --output "${PACKAGE_FILE_PATH}" \
-        "${REDIRECT_URL}" && IS_SUCCESS=1
-
-    if [ $IS_SUCCESS == 0 ]; then
+    if [ ! -f "${PACKAGE_FILE_PATH}" ] \
+    || [ $(du "${PACKAGE_FILE_PATH}" | awk '{print $1}') -eq 4 ]; then
         throw-exception "Failed to download the service package!"
     fi
 }
@@ -144,8 +131,10 @@ function extract-package {
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
     IS_SUCCESS=0
 
-    unzip -qq "${PACKAGE_FILE_PATH}" -d "${SERVICE_BINARIES_DIRECTORY}" && IS_SUCCESS=1
-    rm "${PACKAGE_FILE_PATH}"
+    if [ -f "${PACKAGE_FILE_PATH}" ]; then
+        unzip -qq "${PACKAGE_FILE_PATH}" -d "${SERVICE_BINARIES_DIRECTORY}" && IS_SUCCESS=1
+        rm "${PACKAGE_FILE_PATH}"
+    fi
 
     if [ $IS_SUCCESS == 0 ]; then
         throw-exception "Failed to extract the service package!"
