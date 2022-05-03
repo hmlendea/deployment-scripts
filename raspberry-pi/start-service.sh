@@ -178,7 +178,7 @@ for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
 
     for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json") ; do
         if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
-            sed 's|\"'${APPSETTING_KEY}'\": *\"[^\"]*\"|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\"|g' -i "${APPSETTINGS_FILE}"
+            sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\"|g' -i "${APPSETTINGS_FILE}"
         elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
             sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
         fi
