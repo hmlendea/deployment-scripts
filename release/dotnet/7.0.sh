@@ -15,7 +15,8 @@ if [ -f *.sln ]; then
     cd "${MAIN_PROJECT}"
 fi
 
-BINARY_FILE_LABEL=$(cat "${MAIN_PROJECT}"/*.csproj | grep "RootNamespace" | sed 's/[^>]*>\([^<]*\).*/\1/g')
+MAIN_PROJECT_FILE=$(ls "${MAIN_PROJECT}"/*.csproj | head -n 1)
+BINARY_FILE_LABEL=$(cat "${MAIN_PROJECT_FILE}" | grep "RootNamespace" | sed 's/[^>]*>\([^<]*\).*/\1/g')
 PROJECT_SOURCE_DIR="$(pwd)"
 BIN_RELEASE_DIR="${PROJECT_SOURCE_DIR}/bin/Release"
 PUBLISH_DIR="${BIN_RELEASE_DIR}/.publish-script-output"
@@ -68,11 +69,15 @@ function dotnet-pub {
 
 function prepare {
     mkdir -p "${PUBLISH_DIR}"
+
+    sed -i 's/\(\s*\)\(<TargetFramework>.*\)/\1\2\n\1<PublishTrimmed>true<\/PublishTrimmed> <!-- RELEASE_SCRIPT_TEMP -->/g' "${MAIN_PROJECT_FILE}"
 }
 
 function cleanup {
     echo "Cleaning the build output"
     rm -rf "${PUBLISH_DIR}"
+
+    sed -i '/.*<!-- RELEASE_SCRIPT_TEMP.*/d' "${MAIN_PROJECT_FILE}"
 }
 
 function build-release {
