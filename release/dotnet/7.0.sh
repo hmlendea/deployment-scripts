@@ -8,17 +8,20 @@ if [ -z "${VERSION}" ]; then
 fi
 
 APP_NAME=$(git remote -v | tail -1 | sed 's|.*/\([^/]*\)\.git.*|\1|')
-MAIN_PROJECT=$(pwd)
+SOLUTION_DIR=$(pwd)
 
 if [ -f *.sln ]; then
-    MAIN_PROJECT=$(ls *.sln | head -n 1 | xargs cat | grep "^Project" | head -n 1 | awk -F"=" '{print $2}' | awk -F"," '{print $1}' | sed -e 's/\"*//g' -e 's/\s*//g')
-    cd "${MAIN_PROJECT}"
+    MAIN_PROJECT_NAME=$(ls *.sln | head -n 1 | xargs cat | grep "^Project" | head -n 1 | awk -F"=" '{print $2}' | awk -F"," '{print $1}' | sed -e 's/\"*//g' -e 's/\s*//g')
+    MAIN_PROJECT_DIR="${SOLUTION_DIR}/${MAIN_PROJECT_NAME}"
+else
+    MAIN_PROJECT_DIR="${SOLUTION_DIR}"
 fi
 
-MAIN_PROJECT_FILE=$(ls "${MAIN_PROJECT}"/*.csproj | head -n 1)
+MAIN_PROJECT_FILE=$(ls "${MAIN_PROJECT_DIR}"/*.csproj | head -n 1)
+cd "${MAIN_PROJECT_DIR}"
+
 BINARY_FILE_LABEL=$(cat "${MAIN_PROJECT_FILE}" | grep "RootNamespace" | sed 's/[^>]*>\([^<]*\).*/\1/g')
-PROJECT_SOURCE_DIR="$(pwd)"
-BIN_RELEASE_DIR="${PROJECT_SOURCE_DIR}/bin/Release"
+BIN_RELEASE_DIR="${MAIN_PROJECT_DIR}/bin/Release"
 PUBLISH_DIR="${BIN_RELEASE_DIR}/.publish-script-output"
 
 function package {
@@ -47,7 +50,7 @@ function package {
 
         cd "${OUTPUT_DIR}" || exit
         zip -q -9 -r "${OUTPUT_FILE}" .
-        cd "${PROJECT_SOURCE_DIR}" || exit
+        cd "${MAIN_PROJECT_DIR}" || exit
     fi
 }
 
@@ -56,7 +59,7 @@ function dotnet-pub {
     local OUTPUT_DIR="${PUBLISH_DIR}/${ARCH}"
 
     [ ! -d "${OUTPUT_DIR}" ] && mkdir -p "${OUTPUT_DIR}"
-    cd "${PROJECT_SOURCE_DIR}" || exit
+    cd "${MAIN_PROJECT_DIR}" || exit
 
     dotnet publish \
         --configuration Release \
