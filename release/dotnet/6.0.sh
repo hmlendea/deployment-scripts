@@ -44,6 +44,7 @@ function dotnet-pub {
         --runtime "${ARCH}" \
         --output "${OUTPUT_DIR}" \
         --self-contained true \
+        /p:Version="${VERSION}" \
         /p:TrimUnusedDependencies=true \
         /p:LinkDuringPublish=true
 }
@@ -75,4 +76,3 @@ build-release win-arm64
 build-release win-x64
 
 cleanup
-
