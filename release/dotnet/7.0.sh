@@ -68,20 +68,17 @@ function dotnet-pub {
         --self-contained true \
         /p:Version="${VERSION}" \
         /p:TrimUnusedDependencies=true \
-        /p:LinkDuringPublish=true
+        /p:LinkDuringPublish=true \
+        /p:PublishTrimmed=true
 }
 
 function prepare {
     mkdir -p "${PUBLISH_DIR}"
-
-    sed -i 's/\(\s*\)\(<TargetFramework>.*\)/\1\2\n\1<PublishTrimmed>true<\/PublishTrimmed> <!-- RELEASE_SCRIPT_TEMP -->/g' "${MAIN_PROJECT_FILE}"
 }
 
 function cleanup {
     echo "Cleaning the build output"
     rm -rf "${PUBLISH_DIR}"
-
-    sed -i '/.*<!-- RELEASE_SCRIPT_TEMP.*/d' "${MAIN_PROJECT_FILE}"
 }
 
 function build-release {
