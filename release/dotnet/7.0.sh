@@ -75,7 +75,7 @@ function dotnet-pub {
         /p:Version="${VERSION}" \
         /p:TrimUnusedDependencies="${DO_TRIMMING}" \
         /p:LinkDuringPublish=true \
-        /p:PublishTrimmed=true
+        /p:PublishTrimmed="${DO_TRIMMING}"
 }
 
 function prepare {
