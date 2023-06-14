@@ -166,7 +166,7 @@ for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
     APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
     APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
     APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $3}')
-    APPSETTING_VAL=$(echo "${APPSETTING}" | awk -F, '{print $4}')
+    APPSETTING_VAL=$(echo "${APPSETTING}" | sed 's/^[^,]*,[^,]*,[^,]*,//g')
 
     APPSETTING_VAL=$(echo "${APPSETTING_VAL}" | sed 's/%SERVICE_NAME%/'${SERVICE_NAME}'/g')
 
