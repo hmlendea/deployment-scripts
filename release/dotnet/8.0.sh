@@ -1,16 +1,10 @@
 #!/bin/bash
 
 VERSION="${1}"
-DO_TRIMMING=true
 
 if [ -z "${VERSION}" ]; then
     echo "ERROR: Please specify a version"
     exit 1
-fi
-
-if [[ $* == *--no-trim* ]] \
-|| [[ $* == *--no-trimming* ]]; then
-    DO_TRIMMING=false
 fi
 
 APP_NAME=$(git remote -v | tail -1 | sed 's|.*/\([^/]*\)\.git.*|\1|')
@@ -73,9 +67,7 @@ function dotnet-pub {
         --output "${OUTPUT_DIR}" \
         --self-contained true \
         /p:Version="${VERSION}" \
-        /p:TrimUnusedDependencies="${DO_TRIMMING}" \
-        /p:LinkDuringPublish=true \
-        /p:PublishTrimmed="${DO_TRIMMING}"
+        /p:LinkDuringPublish=true
 }
 
 function prepare {
