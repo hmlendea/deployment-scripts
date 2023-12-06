@@ -161,7 +161,6 @@ SERVICE_EXECUTABLE_FILE_NAME=$(ls "${SERVICE_BINARIES_DIRECTORY}" | grep ".deps.
 SERVICE_EXECUTABLE_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}"
 
 echo "> Setting up application settings..."
-
 for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
     APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
     APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
@@ -178,10 +177,11 @@ for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
 
     for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json") ; do
         if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
-            sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\"|g' -i "${APPSETTINGS_FILE}"
+            sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\",|g' -i "${APPSETTINGS_FILE}"
         elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
             sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
         fi
+        sed 's/\,\,*/,/g' -i "${APPSETTINGS_FILE}"
     done
 done
 
