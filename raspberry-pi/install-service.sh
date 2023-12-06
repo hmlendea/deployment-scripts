@@ -25,6 +25,7 @@ function get-config-value {
 
 DEPLOYMENT_ROOT_DIRECTORY_PATH=$(get-config-value "DeploymentRootDirectory")
 
+[ -z "${SERVICE_NAME}" ] && throw-exception "The service name was not defined!"
 [ ! -d "${DEPLOYMENT_ROOT_DIRECTORY_PATH}" ] && throw-exception "The deployment root directory does not exist!"
 
 SERVICE_BOOT_FILE_PATH="${SCRIPT_DIRECTORY_PATH}/start-service.sh"
