@@ -20,7 +20,7 @@ function get-config-value {
     echo "${CONFIG_VALUE}"
 }
 
-CPU_ARCHITECTURE=$(lscpu | grep "Architecture" | awk -F: '{print $2}' | sed 's/  //g')
+CPU_ARCHITECTURE=$(lscpu | grep "Architecture" | awk -F: '{print $2}' | sed 's/\s//g')
 if [[ "${CPU_ARCHITECTURE}" == "x86_64" ]]; then
     PLATFORM="linux-x64"
 elif [[ "${CPU_ARCHITECTURE}" == "aarch64" ]]; then
