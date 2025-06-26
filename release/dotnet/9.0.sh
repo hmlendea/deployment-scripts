@@ -67,6 +67,9 @@ function dotnet-pub {
         --output "${OUTPUT_DIR}" \
         --self-contained true \
         /p:Version="${VERSION}" \
+        /p:IncludeNativeLibrariesForSelfExtract=true \
+        /p:DebugType=None \
+        /p:DebugSymbols=false \
         /p:LinkDuringPublish=true
 }
 
