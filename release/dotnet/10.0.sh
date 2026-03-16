@@ -91,6 +91,7 @@ function build-release {
 
 prepare
 
+build-release linux-arm
 build-release linux-arm64
 build-release linux-x64
 build-release osx-arm64
