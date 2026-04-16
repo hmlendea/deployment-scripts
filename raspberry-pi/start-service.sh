@@ -21,12 +21,16 @@ function get-config-value {
 }
 
 CPU_ARCHITECTURE=$(lscpu | grep "Architecture" | awk -F: '{print $2}' | sed 's/\s//g')
+
 if [[ "${CPU_ARCHITECTURE}" == "x86_64" ]]; then
     PLATFORM='linux-x64'
+    ARCH_PATTERN='x86_64|amd64'
 elif [[ "${CPU_ARCHITECTURE}" == "aarch64" ]]; then
     PLATFORM='linux-arm64'
+    ARCH_PATTERN='aarch64|arm64'
 else
     PLATFORM='linux-arm'
+    ARCH_PATTERN='arm'
 fi
 
 GITHUB_USERNAME=$(get-config-value "GitHubUsername")
@@ -100,7 +104,7 @@ if [[ "${LATEST_VERSION}" == "Not Found" ]]; then
     throw-exception "Cannot find a stable version to download"
 fi
 
-echo "  > Latest version: $LATEST_VERSION"
+echo '  > Latest version: ${LATEST_VERSION}'
 
 if [ "${NEEDS_UPDATE}" -eq "0" ]; then
     CURRENT_VERSION=$(cat "${SERVICE_VERSION_FILE_LOCATION}")
@@ -122,10 +126,19 @@ function download-package {
     [ -n "${GITHUB_ACCESS_TOKEN}" ] && AUTH_HEADER=(--header "Authorization: token ${GITHUB_ACCESS_TOKEN}")
 
     local ASSET_ID=$(curl \
-                        "${AUTH_HEADER[@]}" \
-                        -H "Accept: application/vnd.github.v3.raw" \
-                        -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
-                    jq ".assets | map(select(.name == \"${PACKAGE_FILE_NAME}\"))[0].id")
+        "${AUTH_HEADER[@]}" \
+        -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
+    jq -r '
+        .assets
+        | (
+            map(select(.name == "'"${PACKAGE_FILE_NAME}"'"))[0]
+            //
+            map(select(
+                (.name | test("linux")) and
+                (.name | test("'"${ARCH_PATTERN}"'"))
+            ))[0]
+        ).id
+    ')
 
     if [ -z "${ASSET_ID}" ] || [ "${ASSET_ID}" = "null" ]; then
         throw-exception "Failed to retrieve the GitHub Asset ID for ${PACKAGE_FILE_NAME}"
