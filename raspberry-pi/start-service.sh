@@ -119,26 +119,33 @@ fi
 function download-package {
     echo '  > Downloading the latest version...'
 
-    local PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
-    local PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
-
     local AUTH_HEADER=()
     [ -n "${GITHUB_ACCESS_TOKEN}" ] && AUTH_HEADER=(--header "Authorization: token ${GITHUB_ACCESS_TOKEN}")
 
-    local ASSET_ID=$(curl \
-        "${AUTH_HEADER[@]}" \
-        -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
-    jq -r '
-        .assets
-        | (
-            map(select(.name == "'"${PACKAGE_FILE_NAME}"'"))[0]
-            //
-            map(select(
-                (.name | test("linux")) and
-                (.name | test("'"${ARCH_PATTERN}"'"))
-            ))[0]
-        ).id
-    ')
+    mapfile -t ASSET_INFO < <(
+        curl \
+            "${AUTH_HEADER[@]}" \
+            -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
+                jq -r '
+                    .assets
+                    | (
+                        map(select(.name == "'"${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"'"))[0]
+                        //
+                        map(select(
+                            (.name | test("linux")) and
+                            (.name | test("'"${ARCH_PATTERN}"'"))
+                        ))[0]
+                    )
+                    | "\(.id)\n\(.name)\n\(.browser_download_url)"
+                '
+    )
+    
+    local ASSET_ID="${ASSET_INFO[0]}"
+    local ASSET_NAME="${ASSET_INFO[1]}"
+    local ASSET_URL="${ASSET_INFO[2]}"
+
+    PACKAGE_FILE_NAME="${ASSET_NAME}"
+    PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
 
     if [ -z "${ASSET_ID}" ] || [ "${ASSET_ID}" = "null" ]; then
         throw-exception "Failed to retrieve the GitHub Asset ID for ${PACKAGE_FILE_NAME}"
@@ -146,37 +153,65 @@ function download-package {
 
     if [ -n "${GITHUB_ACCESS_TOKEN}" ]; then
         DOWNLOAD_URL="https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
+    
+        wget \
+            --quiet \
+            --auth-no-challenge \
+            --header='Accept:application/octet-stream' \
+            "https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
     else
-        DOWNLOAD_URL="https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
+        wget \
+            --quiet \
+            "${ASSET_URL}" \
+            --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
     fi
-
-    wget \
-        --quiet \
-        --auth-no-challenge \
-        --header='Accept:application/octet-stream' \
-        "${DOWNLOAD_URL}" \
-        --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
 
     if [ ! -f "${PACKAGE_FILE_PATH}" ] \
     || [ $(du "${PACKAGE_FILE_PATH}" | awk '{print $1}') -eq 4 ]; then
-        throw-exception "Failed to download the service package!"
+        throw-exception 'Failed to download the service package!'
     fi
 }
 
-function extract-package {
-    echo '  > Extracting the package...'
+function is-archive {
+    case "$1" in
+        *.zip|*.tar.gz|*.tgz|*.tar)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
-    PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
+function prepare-package {
+    echo '  > Preparing the package...'
+
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
-    IS_SUCCESS=0
 
-    if [ -f "${PACKAGE_FILE_PATH}" ]; then
-        unzip -qq "${PACKAGE_FILE_PATH}" -d "${SERVICE_BINARIES_DIRECTORY}" && IS_SUCCESS=1
+    mkdir -p "${SERVICE_BINARIES_DIRECTORY}"
+
+    if is-archive "${PACKAGE_FILE_NAME}"; then
+        echo '    > Detected archive'
+
+        case "${PACKAGE_FILE_NAME}" in
+            *.zip)
+                unzip -qq "${PACKAGE_FILE_PATH}" -d "${SERVICE_BINARIES_DIRECTORY}"
+                ;;
+            *.tar.gz|*.tgz)
+                tar -xzf "${PACKAGE_FILE_PATH}" -C "${SERVICE_BINARIES_DIRECTORY}"
+                ;;
+            *.tar)
+                tar -xf "${PACKAGE_FILE_PATH}" -C "${SERVICE_BINARIES_DIRECTORY}"
+                ;;
+        esac
+
         rm "${PACKAGE_FILE_PATH}"
-    fi
+    else
+        echo '    > Detected single binary'
 
-    if [ $IS_SUCCESS == 0 ]; then
-        throw-exception "Failed to extract the service package!"
+        mv "${PACKAGE_FILE_PATH}" "${SERVICE_BINARIES_DIRECTORY}/${PACKAGE_FILE_NAME}"
+        chmod +x "${SERVICE_BINARIES_DIRECTORY}/${PACKAGE_FILE_NAME}"
     fi
 
     printf "${LATEST_VERSION}" > "${SERVICE_VERSION_FILE_LOCATION}"
@@ -193,10 +228,15 @@ if [ "${NEEDS_UPDATE}" -eq "1" ]; then
     fi
 
     download-package
-    extract-package
+    prepare-package
 fi
 
-SERVICE_EXECUTABLE_FILE_NAME=$(ls "${SERVICE_BINARIES_DIRECTORY}" | grep ".deps.json" | sed 's/\.deps\.json$//g')
+if ls "${SERVICE_BINARIES_DIRECTORY}"/*.deps.json >/dev/null 2>&1; then
+    SERVICE_EXECUTABLE_FILE_NAME=$(ls "${SERVICE_BINARIES_DIRECTORY}"/*.deps.json | sed 's/\.deps\.json$//' | xargs -n1 basename)
+else
+    SERVICE_EXECUTABLE_FILE_NAME="${PACKAGE_FILE_NAME}"
+fi
+
 SERVICE_EXECUTABLE_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}"
 
 echo "> Setting up application settings..."
@@ -225,30 +265,30 @@ for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
 done
 
 if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
-    echo "> Building the launcher script..."
+    echo '> Building the launcher script...'
 
-    echo "  > Determining the application type..."
+    echo '  > Determining the application type...'
     DOTNET_DEPS_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}.deps.json"
-    APP_TYPE="UNKNOWN"
+    APP_TYPE='UNKNOWN'
 
     if [ -f "${DOTNET_DEPS_FILE_LOCATION}" ]; then
-        APP_TYPE="DOTNET_CORE"
+        APP_TYPE='DOTNET_CORE'
 
         if [ $(grep -c "Microsoft\.AspNetCore\.App" "${DOTNET_DEPS_FILE_LOCATION}") -ge 1 ]; then
-            APP_TYPE="ASP_DOTNET_CORE"
+            APP_TYPE='ASP_DOTNET_CORE'
         fi
     fi
     echo "  > Application type: ${APP_TYPE}"
 
-    echo "  > Writing the script..."
-    echo "#!/bin/bash" > "${SERVICE_LAUNCHER_FILE_LOCATION}"
+    echo '  > Writing the script...'
+    echo '#!/bin/bash' > "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "PREVIOUS_DIRECTORY_LOCATION=\"$(pwd)\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "cd \"${SERVICE_BINARIES_DIRECTORY}\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     if [[ "${APP_TYPE}" = "ASP_DOTNET_CORE" ]]; then
         PORT_NUMBER=${1} && shift
 
         [[ ${PORT_NUMBER} =~ [^0-9]+ ]] && throw-exception "The specified port number is invalid: ${PORT_NUMBER}"
-        [ -z "${PORT_NUMBER}" ] && throw-exception "The port number cannot be empty"
+        [ -z "${PORT_NUMBER}" ] && throw-exception 'The port number cannot be empty'
 
         printf "ASPNETCORE_URLS=\"http://*:${PORT_NUMBER}\" " >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     fi
