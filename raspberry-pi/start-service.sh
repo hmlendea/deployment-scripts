@@ -22,19 +22,33 @@ function get-config-value {
 
 CPU_ARCHITECTURE=$(lscpu | grep "Architecture" | awk -F: '{print $2}' | sed 's/\s//g')
 if [[ "${CPU_ARCHITECTURE}" == "x86_64" ]]; then
-    PLATFORM="linux-x64"
+    PLATFORM='linux-x64'
 elif [[ "${CPU_ARCHITECTURE}" == "aarch64" ]]; then
-    PLATFORM="linux-arm64"
+    PLATFORM='linux-arm64'
 else
-    PLATFORM="linux-arm"
+    PLATFORM='linux-arm'
 fi
 
 GITHUB_USERNAME=$(get-config-value "GitHubUsername")
 GITHUB_ACCESS_TOKEN=$(get-config-value "GitHubAccessToken")
-GITHUB_REPOSITORY=${1} && shift
+GITHUB_REPOSITORY=''
+
+INPUT_REPOSITORY="${1}" && shift
+
+if [[ "${INPUT_REPOSITORY}" == *"/"* ]]; then
+    GITHUB_USERNAME_OVERRIDE="${INPUT_REPOSITORY%%/*}"
+    GITHUB_REPOSITORY="${INPUT_REPOSITORY##*/}"
+
+    if [ "${GITHUB_USERNAME}" != "${GITHUB_USERNAME_OVERRIDE}" ]; then
+        GITHUB_USERNAME="${GITHUB_USERNAME_OVERRIDE}"
+        GITHUB_ACCESS_TOKEN=''
+    fi
+else
+    GITHUB_REPOSITORY="${INPUT_REPOSITORY}"
+fi
 
 [ -z "${GITHUB_USERNAME}" ] && throw-exception "The GitHub username cannot be empty"
-[ -z "${GITHUB_ACCESS_TOKEN}" ] && throw-exception "The GitHub access token cannot be empty"
+#[ -z "${GITHUB_ACCESS_TOKEN}" ] && throw-exception "The GitHub access token cannot be empty"
 [ -z "${GITHUB_REPOSITORY}" ] && throw-exception "The GitHub repository name cannot be empty"
 
 if [ -n "${SERVICE_INSTANCE_NAME}" ]; then
@@ -53,30 +67,33 @@ SERVICE_LAUNCHER_FILE_LOCATION="${SERVICE_ROOT_DIRECTORY}/start"
 
 NEEDS_UPDATE=0
 
-echo "> Ensuring the file structure..."
+echo '> Ensuring the file structure...'
 [ ! -d "${SERVICE_ROOT_DIRECTORY}" ]        && mkdir -p "${SERVICE_ROOT_DIRECTORY}"
 [ ! -d "${SERVICE_BINARIES_DIRECTORY}" ]    && mkdir -p "${SERVICE_BINARIES_DIRECTORY}"
 [ ! -d "${SERVICE_TEMPORARY_DIRECTORY}" ]   && mkdir -p "${SERVICE_TEMPORARY_DIRECTORY}"
 [ ! -f "${SERVICE_VERSION_FILE_LOCATION}" ] && touch "${SERVICE_VERSION_FILE_LOCATION}"
 
-if [ -z $(cat "${SERVICE_VERSION_FILE_LOCATION}") ] || \
-   [ ! "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ]   || \
-   [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]     ; then
-    echo "  > Service not installed!"
-    echo "    > Update required!"
+if [ ! -s "${SERVICE_VERSION_FILE_LOCATION}" ] || \
+   [ ! "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ] || \
+   [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
+    echo '  > Service not installed!'
+    echo '    > Update required!'
     NEEDS_UPDATE=1
 fi
 
 function getLatestReleaseVersion() {
+    local AUTH_HEADER=()
+    [ -n "${GITHUB_ACCESS_TOKEN}" ] && AUTH_HEADER=(--header "Authorization: token ${GITHUB_ACCESS_TOKEN}")
+
     curl \
         --silent \
-        --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+        "${AUTH_HEADER[@]}" \
         "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/latest" | \
-            grep "tag_name" | \
+            grep 'tag_name' | \
             sed 's/.*: \"v\([^\"]*\).*/\1/g'
 }
 
-echo "> Retrieving version information..."
+echo '> Retrieving version information...'
 LATEST_VERSION=$(getLatestReleaseVersion)
 
 if [[ "${LATEST_VERSION}" == "Not Found" ]]; then
@@ -96,13 +113,16 @@ if [ "${NEEDS_UPDATE}" -eq "0" ]; then
 fi
 
 function download-package {
-    echo "  > Downloading the latest version..."
+    echo '  > Downloading the latest version...'
 
     local PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
     local PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
 
+    local AUTH_HEADER=()
+    [ -n "${GITHUB_ACCESS_TOKEN}" ] && AUTH_HEADER=(--header "Authorization: token ${GITHUB_ACCESS_TOKEN}")
+
     local ASSET_ID=$(curl \
-                        -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+                        "${AUTH_HEADER[@]}" \
                         -H "Accept: application/vnd.github.v3.raw" \
                         -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
                     jq ".assets | map(select(.name == \"${PACKAGE_FILE_NAME}\"))[0].id")
@@ -111,11 +131,17 @@ function download-package {
         throw-exception "Failed to retrieve the GitHub Asset ID for ${PACKAGE_FILE_NAME}"
     fi
 
+    if [ -n "${GITHUB_ACCESS_TOKEN}" ]; then
+        DOWNLOAD_URL="https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
+    else
+        DOWNLOAD_URL="https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
+    fi
+
     wget \
         --quiet \
         --auth-no-challenge \
         --header='Accept:application/octet-stream' \
-        "https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+        "${DOWNLOAD_URL}" \
         --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
 
     if [ ! -f "${PACKAGE_FILE_PATH}" ] \
@@ -125,7 +151,7 @@ function download-package {
 }
 
 function extract-package {
-    echo "  > Extracting the package..."
+    echo '  > Extracting the package...'
 
     PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
