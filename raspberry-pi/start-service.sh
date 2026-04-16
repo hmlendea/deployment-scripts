@@ -104,7 +104,7 @@ if [[ "${LATEST_VERSION}" == "Not Found" ]]; then
     throw-exception "Cannot find a stable version to download"
 fi
 
-echo '  > Latest version: ${LATEST_VERSION}'
+echo "  > Latest version: ${LATEST_VERSION}"
 
 if [ "${NEEDS_UPDATE}" -eq "0" ]; then
     CURRENT_VERSION=$(cat "${SERVICE_VERSION_FILE_LOCATION}")
