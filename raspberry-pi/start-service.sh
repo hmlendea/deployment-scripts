@@ -239,48 +239,49 @@ fi
 
 SERVICE_EXECUTABLE_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}"
 
-echo "> Setting up application settings..."
-for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
-    APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
-    APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
-    APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $3}')
-    APPSETTING_VAL=$(echo "${APPSETTING}" | sed 's/^[^,]*,[^,]*,[^,]*,//g')
+echo '> Determining the application type...'
+DOTNET_DEPS_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}.deps.json"
+APP_TYPE='BINARY'
 
-    APPSETTING_VAL=$(echo "${APPSETTING_VAL}" | sed 's/%SERVICE_NAME%/'${SERVICE_NAME}'/g')
-
-    if [[ "${APPSETTING_APP}" != "ALL" ]] && \
-       [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]] && \
-       [[ "${APPSETTING_APP}" != "${GITHUB_REPOSITORY}" ]]; then
-        continue
+if [ -f "${DOTNET_DEPS_FILE_LOCATION}" ]; then
+    APP_TYPE='DOTNET_CORE'
+    if [ $(grep -c "Microsoft\.AspNetCore\.App" "${DOTNET_DEPS_FILE_LOCATION}") -ge 1 ]; then
+        APP_TYPE='ASP_DOTNET_CORE'
     fi
+fi
 
-    for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json") ; do
-        if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
-            sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\",|g' -i "${APPSETTINGS_FILE}"
-        elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
-            sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
+echo "  > Application type: ${APP_TYPE}"
+
+if [[ "${APP_TYPE}" == "DOTNET_CORE" || "${APP_TYPE}" == "ASP_DOTNET_CORE" ]]; then
+    echo '> Setting up application settings...'
+    for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
+        APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
+        APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
+        APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $3}')
+        APPSETTING_VAL=$(echo "${APPSETTING}" | sed 's/^[^,]*,[^,]*,[^,]*,//g')
+
+        APPSETTING_VAL=$(echo "${APPSETTING_VAL}" | sed 's/%SERVICE_NAME%/'${SERVICE_NAME}'/g')
+
+        if [[ "${APPSETTING_APP}" != "ALL" ]] && \
+           [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]] && \
+           [[ "${APPSETTING_APP}" != "${GITHUB_REPOSITORY}" ]]; then
+            continue
         fi
-        sed 's/\,\,*/,/g' -i "${APPSETTINGS_FILE}"
+
+        for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json") ; do
+            if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
+                sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\",|g' -i "${APPSETTINGS_FILE}"
+            elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
+                sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
+            fi
+            sed 's/\,\,*/,/g' -i "${APPSETTINGS_FILE}"
+        done
     done
-done
+fi
 
 if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
     echo '> Building the launcher script...'
 
-    echo '  > Determining the application type...'
-    DOTNET_DEPS_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}.deps.json"
-    APP_TYPE='BINARY'
-
-    if [ -f "${DOTNET_DEPS_FILE_LOCATION}" ]; then
-        APP_TYPE='DOTNET_CORE'
-
-        if [ $(grep -c "Microsoft\.AspNetCore\.App" "${DOTNET_DEPS_FILE_LOCATION}") -ge 1 ]; then
-            APP_TYPE='ASP_DOTNET_CORE'
-        fi
-    fi
-    echo "  > Application type: ${APP_TYPE}"
-
-    echo '  > Writing the script...'
     echo '#!/bin/bash' > "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "PREVIOUS_DIRECTORY_LOCATION=\"$(pwd)\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "cd \"${SERVICE_BINARIES_DIRECTORY}\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
