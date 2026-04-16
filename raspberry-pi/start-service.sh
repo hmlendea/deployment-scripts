@@ -21,20 +21,38 @@ function get-config-value {
 }
 
 CPU_ARCHITECTURE=$(lscpu | grep "Architecture" | awk -F: '{print $2}' | sed 's/\s//g')
+
 if [[ "${CPU_ARCHITECTURE}" == "x86_64" ]]; then
-    PLATFORM="linux-x64"
+    PLATFORM='linux-x64'
+    ARCH_PATTERN='x86_64|amd64'
 elif [[ "${CPU_ARCHITECTURE}" == "aarch64" ]]; then
-    PLATFORM="linux-arm64"
+    PLATFORM='linux-arm64'
+    ARCH_PATTERN='aarch64|arm64'
 else
-    PLATFORM="linux-arm"
+    PLATFORM='linux-arm'
+    ARCH_PATTERN='arm'
 fi
 
 GITHUB_USERNAME=$(get-config-value "GitHubUsername")
 GITHUB_ACCESS_TOKEN=$(get-config-value "GitHubAccessToken")
-GITHUB_REPOSITORY=${1} && shift
+GITHUB_REPOSITORY=''
+
+INPUT_REPOSITORY="${1}" && shift
+
+if [[ "${INPUT_REPOSITORY}" == *"/"* ]]; then
+    GITHUB_USERNAME_OVERRIDE="${INPUT_REPOSITORY%%/*}"
+    GITHUB_REPOSITORY="${INPUT_REPOSITORY##*/}"
+
+    if [ "${GITHUB_USERNAME}" != "${GITHUB_USERNAME_OVERRIDE}" ]; then
+        GITHUB_USERNAME="${GITHUB_USERNAME_OVERRIDE}"
+        GITHUB_ACCESS_TOKEN=''
+    fi
+else
+    GITHUB_REPOSITORY="${INPUT_REPOSITORY}"
+fi
 
 [ -z "${GITHUB_USERNAME}" ] && throw-exception "The GitHub username cannot be empty"
-[ -z "${GITHUB_ACCESS_TOKEN}" ] && throw-exception "The GitHub access token cannot be empty"
+#[ -z "${GITHUB_ACCESS_TOKEN}" ] && throw-exception "The GitHub access token cannot be empty"
 [ -z "${GITHUB_REPOSITORY}" ] && throw-exception "The GitHub repository name cannot be empty"
 
 if [ -n "${SERVICE_INSTANCE_NAME}" ]; then
@@ -53,37 +71,40 @@ SERVICE_LAUNCHER_FILE_LOCATION="${SERVICE_ROOT_DIRECTORY}/start"
 
 NEEDS_UPDATE=0
 
-echo "> Ensuring the file structure..."
+echo '> Ensuring the file structure...'
 [ ! -d "${SERVICE_ROOT_DIRECTORY}" ]        && mkdir -p "${SERVICE_ROOT_DIRECTORY}"
 [ ! -d "${SERVICE_BINARIES_DIRECTORY}" ]    && mkdir -p "${SERVICE_BINARIES_DIRECTORY}"
 [ ! -d "${SERVICE_TEMPORARY_DIRECTORY}" ]   && mkdir -p "${SERVICE_TEMPORARY_DIRECTORY}"
 [ ! -f "${SERVICE_VERSION_FILE_LOCATION}" ] && touch "${SERVICE_VERSION_FILE_LOCATION}"
 
-if [ -z $(cat "${SERVICE_VERSION_FILE_LOCATION}") ] || \
-   [ ! "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ]   || \
-   [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]     ; then
-    echo "  > Service not installed!"
-    echo "    > Update required!"
+if [ ! -s "${SERVICE_VERSION_FILE_LOCATION}" ] || \
+   [ ! "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ] || \
+   [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
+    echo '  > Service not installed!'
+    echo '    > Update required!'
     NEEDS_UPDATE=1
 fi
 
 function getLatestReleaseVersion() {
+    local AUTH_HEADER=()
+    [ -n "${GITHUB_ACCESS_TOKEN}" ] && AUTH_HEADER=(--header "Authorization: token ${GITHUB_ACCESS_TOKEN}")
+
     curl \
         --silent \
-        --header "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
+        "${AUTH_HEADER[@]}" \
         "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/latest" | \
-            grep "tag_name" | \
+            grep 'tag_name' | \
             sed 's/.*: \"v\([^\"]*\).*/\1/g'
 }
 
-echo "> Retrieving version information..."
+echo '> Retrieving version information...'
 LATEST_VERSION=$(getLatestReleaseVersion)
 
 if [[ "${LATEST_VERSION}" == "Not Found" ]]; then
     throw-exception "Cannot find a stable version to download"
 fi
 
-echo "  > Latest version: $LATEST_VERSION"
+echo "  > Latest version: ${LATEST_VERSION}"
 
 if [ "${NEEDS_UPDATE}" -eq "0" ]; then
     CURRENT_VERSION=$(cat "${SERVICE_VERSION_FILE_LOCATION}")
@@ -96,48 +117,101 @@ if [ "${NEEDS_UPDATE}" -eq "0" ]; then
 fi
 
 function download-package {
-    echo "  > Downloading the latest version..."
+    echo '  > Downloading the latest version...'
 
-    local PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
-    local PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
+    local AUTH_HEADER=()
+    [ -n "${GITHUB_ACCESS_TOKEN}" ] && AUTH_HEADER=(--header "Authorization: token ${GITHUB_ACCESS_TOKEN}")
 
-    local ASSET_ID=$(curl \
-                        -H "Authorization: token ${GITHUB_ACCESS_TOKEN}" \
-                        -H "Accept: application/vnd.github.v3.raw" \
-                        -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
-                    jq ".assets | map(select(.name == \"${PACKAGE_FILE_NAME}\"))[0].id")
+    mapfile -t ASSET_INFO < <(
+        curl \
+            "${AUTH_HEADER[@]}" \
+            -s "https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/tags/v${LATEST_VERSION}" | \
+                jq -r '
+                    .assets
+                    | (
+                        map(select(.name == "'"${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"'"))[0]
+                        //
+                        map(select(
+                            (.name | test("linux")) and
+                            (.name | test("'"${ARCH_PATTERN}"'"))
+                        ))[0]
+                    )
+                    | "\(.id)\n\(.name)\n\(.browser_download_url)"
+                '
+    )
+    
+    local ASSET_ID="${ASSET_INFO[0]}"
+    local ASSET_NAME="${ASSET_INFO[1]}"
+    local ASSET_URL="${ASSET_INFO[2]}"
+
+    PACKAGE_FILE_NAME="${ASSET_NAME}"
+    PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
 
     if [ -z "${ASSET_ID}" ] || [ "${ASSET_ID}" = "null" ]; then
         throw-exception "Failed to retrieve the GitHub Asset ID for ${PACKAGE_FILE_NAME}"
     fi
 
-    wget \
-        --quiet \
-        --auth-no-challenge \
-        --header='Accept:application/octet-stream' \
-        "https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
-        --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
+    if [ -n "${GITHUB_ACCESS_TOKEN}" ]; then
+        DOWNLOAD_URL="https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
+    
+        wget \
+            --quiet \
+            --auth-no-challenge \
+            --header='Accept:application/octet-stream' \
+            "https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}" \
+            --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
+    else
+        wget \
+            --quiet \
+            "${ASSET_URL}" \
+            --output-document "${PACKAGE_FILE_PATH}" 2>/dev/null
+    fi
 
     if [ ! -f "${PACKAGE_FILE_PATH}" ] \
     || [ $(du "${PACKAGE_FILE_PATH}" | awk '{print $1}') -eq 4 ]; then
-        throw-exception "Failed to download the service package!"
+        throw-exception 'Failed to download the service package!'
     fi
 }
 
-function extract-package {
-    echo "  > Extracting the package..."
+function is-archive {
+    case "$1" in
+        *.zip|*.tar.gz|*.tgz|*.tar)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
-    PACKAGE_FILE_NAME="${GITHUB_REPOSITORY}_${LATEST_VERSION}_${PLATFORM}.zip"
+function prepare-package {
+    echo '  > Preparing the package...'
+
     PACKAGE_FILE_PATH="${SERVICE_TEMPORARY_DIRECTORY}/${PACKAGE_FILE_NAME}"
-    IS_SUCCESS=0
 
-    if [ -f "${PACKAGE_FILE_PATH}" ]; then
-        unzip -qq "${PACKAGE_FILE_PATH}" -d "${SERVICE_BINARIES_DIRECTORY}" && IS_SUCCESS=1
+    mkdir -p "${SERVICE_BINARIES_DIRECTORY}"
+
+    if is-archive "${PACKAGE_FILE_NAME}"; then
+        echo '    > Detected archive'
+
+        case "${PACKAGE_FILE_NAME}" in
+            *.zip)
+                unzip -qq "${PACKAGE_FILE_PATH}" -d "${SERVICE_BINARIES_DIRECTORY}"
+                ;;
+            *.tar.gz|*.tgz)
+                tar -xzf "${PACKAGE_FILE_PATH}" -C "${SERVICE_BINARIES_DIRECTORY}"
+                ;;
+            *.tar)
+                tar -xf "${PACKAGE_FILE_PATH}" -C "${SERVICE_BINARIES_DIRECTORY}"
+                ;;
+        esac
+
         rm "${PACKAGE_FILE_PATH}"
-    fi
+    else
+        echo '    > Detected single binary'
 
-    if [ $IS_SUCCESS == 0 ]; then
-        throw-exception "Failed to extract the service package!"
+        mv "${PACKAGE_FILE_PATH}" "${SERVICE_BINARIES_DIRECTORY}/${PACKAGE_FILE_NAME}"
+        chmod +x "${SERVICE_BINARIES_DIRECTORY}/${PACKAGE_FILE_NAME}"
     fi
 
     printf "${LATEST_VERSION}" > "${SERVICE_VERSION_FILE_LOCATION}"
@@ -154,62 +228,71 @@ if [ "${NEEDS_UPDATE}" -eq "1" ]; then
     fi
 
     download-package
-    extract-package
+    prepare-package
 fi
 
-SERVICE_EXECUTABLE_FILE_NAME=$(ls "${SERVICE_BINARIES_DIRECTORY}" | grep ".deps.json" | sed 's/\.deps\.json$//g')
+if ls "${SERVICE_BINARIES_DIRECTORY}"/*.deps.json >/dev/null 2>&1; then
+    SERVICE_EXECUTABLE_FILE_NAME=$(ls "${SERVICE_BINARIES_DIRECTORY}"/*.deps.json | sed 's/\.deps\.json$//' | xargs -n1 basename)
+else
+    SERVICE_EXECUTABLE_FILE_NAME="${PACKAGE_FILE_NAME}"
+fi
+
 SERVICE_EXECUTABLE_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}"
 
-echo "> Setting up application settings..."
-for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
-    APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
-    APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
-    APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $3}')
-    APPSETTING_VAL=$(echo "${APPSETTING}" | sed 's/^[^,]*,[^,]*,[^,]*,//g')
+echo '> Determining the application type...'
+DOTNET_DEPS_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}.deps.json"
+APP_TYPE='BINARY'
 
-    APPSETTING_VAL=$(echo "${APPSETTING_VAL}" | sed 's/%SERVICE_NAME%/'${SERVICE_NAME}'/g')
-
-    if [[ "${APPSETTING_APP}" != "ALL" ]] && \
-       [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]] && \
-       [[ "${APPSETTING_APP}" != "${GITHUB_REPOSITORY}" ]]; then
-        continue
+if [ -f "${DOTNET_DEPS_FILE_LOCATION}" ]; then
+    APP_TYPE='DOTNET_CORE'
+    if [ $(grep -c "Microsoft\.AspNetCore\.App" "${DOTNET_DEPS_FILE_LOCATION}") -ge 1 ]; then
+        APP_TYPE='ASP_DOTNET_CORE'
     fi
+fi
 
-    for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json") ; do
-        if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
-            sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\",|g' -i "${APPSETTINGS_FILE}"
-        elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
-            sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
-        fi
-        sed 's/\,\,*/,/g' -i "${APPSETTINGS_FILE}"
-    done
-done
+echo "  > Application type: ${APP_TYPE}"
+
+if [[ "${APP_TYPE}" == "DOTNET_CORE" || "${APP_TYPE}" == "ASP_DOTNET_CORE" ]]; then
+    if find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json" | grep -q .; then
+        echo '> Setting up application settings...'
+
+        for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
+            APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
+            APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
+            APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $3}')
+            APPSETTING_VAL=$(echo "${APPSETTING}" | sed 's/^[^,]*,[^,]*,[^,]*,//g')
+
+            APPSETTING_VAL=$(echo "${APPSETTING_VAL}" | sed 's/%SERVICE_NAME%/'${SERVICE_NAME}'/g')
+
+            if [[ "${APPSETTING_APP}" != "ALL" ]] && \
+               [[ "${APPSETTING_APP}" != "${SERVICE_NAME}" ]] && \
+               [[ "${APPSETTING_APP}" != "${GITHUB_REPOSITORY}" ]]; then
+                continue
+            fi
+
+            for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json"); do
+                if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
+                    sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\",|g' -i "${APPSETTINGS_FILE}"
+                elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
+                    sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
+                fi
+                sed 's/\,\,*/,/g' -i "${APPSETTINGS_FILE}"
+            done
+        done
+    fi
+fi
 
 if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
-    echo "> Building the launcher script..."
+    echo '> Building the launcher script...'
 
-    echo "  > Determining the application type..."
-    DOTNET_DEPS_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}.deps.json"
-    APP_TYPE="UNKNOWN"
-
-    if [ -f "${DOTNET_DEPS_FILE_LOCATION}" ]; then
-        APP_TYPE="DOTNET_CORE"
-
-        if [ $(grep -c "Microsoft\.AspNetCore\.App" "${DOTNET_DEPS_FILE_LOCATION}") -ge 1 ]; then
-            APP_TYPE="ASP_DOTNET_CORE"
-        fi
-    fi
-    echo "  > Application type: ${APP_TYPE}"
-
-    echo "  > Writing the script..."
-    echo "#!/bin/bash" > "${SERVICE_LAUNCHER_FILE_LOCATION}"
+    echo '#!/bin/bash' > "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "PREVIOUS_DIRECTORY_LOCATION=\"$(pwd)\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     echo "cd \"${SERVICE_BINARIES_DIRECTORY}\"" >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     if [[ "${APP_TYPE}" = "ASP_DOTNET_CORE" ]]; then
         PORT_NUMBER=${1} && shift
 
         [[ ${PORT_NUMBER} =~ [^0-9]+ ]] && throw-exception "The specified port number is invalid: ${PORT_NUMBER}"
-        [ -z "${PORT_NUMBER}" ] && throw-exception "The port number cannot be empty"
+        [ -z "${PORT_NUMBER}" ] && throw-exception 'The port number cannot be empty'
 
         printf "ASPNETCORE_URLS=\"http://*:${PORT_NUMBER}\" " >> "${SERVICE_LAUNCHER_FILE_LOCATION}"
     fi
