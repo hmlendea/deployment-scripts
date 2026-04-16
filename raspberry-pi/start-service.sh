@@ -269,7 +269,7 @@ if [ ! -f "${SERVICE_LAUNCHER_FILE_LOCATION}" ]; then
 
     echo '  > Determining the application type...'
     DOTNET_DEPS_FILE_LOCATION="${SERVICE_BINARIES_DIRECTORY}/${SERVICE_EXECUTABLE_FILE_NAME}.deps.json"
-    APP_TYPE='UNKNOWN'
+    APP_TYPE='BINARY'
 
     if [ -f "${DOTNET_DEPS_FILE_LOCATION}" ]; then
         APP_TYPE='DOTNET_CORE'
