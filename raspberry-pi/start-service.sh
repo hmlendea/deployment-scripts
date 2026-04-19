@@ -68,6 +68,47 @@ SERVICE_BINARIES_DIRECTORY="${SERVICE_ROOT_DIRECTORY}/bin"
 SERVICE_TEMPORARY_DIRECTORY="${SERVICE_ROOT_DIRECTORY}/tmp"
 SERVICE_VERSION_FILE_LOCATION="${SERVICE_ROOT_DIRECTORY}/version"
 SERVICE_LAUNCHER_FILE_LOCATION="${SERVICE_ROOT_DIRECTORY}/start"
+SERVICE_UPDATE_LOCK_FILE_LOCATION="${SERVICE_ROOT_DIRECTORY}/lock.lck"
+SERVICE_UPDATE_LOCK_MAX_AGE_SECONDS=600
+
+UPDATE_LOCK_ACQUIRED=0
+
+function release-update-lock {
+    if [ "${UPDATE_LOCK_ACQUIRED}" -eq "1" ] && [ -f "${SERVICE_UPDATE_LOCK_FILE_LOCATION}" ]; then
+        rm -f "${SERVICE_UPDATE_LOCK_FILE_LOCATION}"
+        UPDATE_LOCK_ACQUIRED=0
+    fi
+}
+
+function acquire-update-lock {
+    local NOW
+    local LOCK_TIMESTAMP
+    local LOCK_AGE
+
+    NOW=$(date +%s)
+
+    while true; do
+        if ( set -o noclobber; printf "%s" "${NOW}" > "${SERVICE_UPDATE_LOCK_FILE_LOCATION}" ) 2>/dev/null; then
+            UPDATE_LOCK_ACQUIRED=1
+            break
+        fi
+
+        [ ! -f "${SERVICE_UPDATE_LOCK_FILE_LOCATION}" ] && continue
+
+        LOCK_TIMESTAMP=$(tr -d '[:space:]' < "${SERVICE_UPDATE_LOCK_FILE_LOCATION}")
+        NOW=$(date +%s)
+
+        if [[ "${LOCK_TIMESTAMP}" =~ ^[0-9]+$ ]]; then
+            LOCK_AGE=$((NOW - LOCK_TIMESTAMP))
+            if [ "${LOCK_AGE}" -ge "0" ] && [ "${LOCK_AGE}" -lt "${SERVICE_UPDATE_LOCK_MAX_AGE_SECONDS}" ]; then
+                throw-exception "Another installation/update is currently running for ${SERVICE_NAME}"
+            fi
+        fi
+
+        rm -f "${SERVICE_UPDATE_LOCK_FILE_LOCATION}"
+        NOW=$(date +%s)
+    done
+}
 
 NEEDS_UPDATE=0
 
@@ -139,7 +180,7 @@ function download-package {
                     | "\(.id)\n\(.name)\n\(.browser_download_url)"
                 '
     )
-    
+
     local ASSET_ID="${ASSET_INFO[0]}"
     local ASSET_NAME="${ASSET_INFO[1]}"
     local ASSET_URL="${ASSET_INFO[2]}"
@@ -153,7 +194,7 @@ function download-package {
 
     if [ -n "${GITHUB_ACCESS_TOKEN}" ]; then
         DOWNLOAD_URL="https://${GITHUB_ACCESS_TOKEN}:@api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
-    
+
         wget \
             --quiet \
             --auth-no-challenge \
@@ -220,6 +261,9 @@ function prepare-package {
 if [ "${NEEDS_UPDATE}" -eq "1" ]; then
     echo "> Updating the service..."
 
+    echo '  > Acquiring update lock...'
+    acquire-update-lock
+    trap release-update-lock EXIT
 
     if [ "$(ls -A ${SERVICE_BINARIES_DIRECTORY})" ]; then
         echo "  > Removing the existing version..."
@@ -229,6 +273,9 @@ if [ "${NEEDS_UPDATE}" -eq "1" ]; then
 
     download-package
     prepare-package
+
+    release-update-lock
+    trap - EXIT
 fi
 
 if ls "${SERVICE_BINARIES_DIRECTORY}"/*.deps.json >/dev/null 2>&1; then
