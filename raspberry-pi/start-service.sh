@@ -303,7 +303,9 @@ if [[ "${APP_TYPE}" == "DOTNET_CORE" || "${APP_TYPE}" == "ASP_DOTNET_CORE" ]]; t
     if find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json" | grep -q .; then
         echo '> Setting up application settings...'
 
-        for APPSETTING in $(cat "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"); do
+        while IFS= read -r APPSETTING || [ -n "${APPSETTING}" ]; do
+            [ -z "${APPSETTING}" ] && continue
+
             APPSETTING_APP=$(echo "${APPSETTING}" | awk -F, '{print $1}')
             APPSETTING_MOD=$(echo "${APPSETTING}" | awk -F, '{print $2}')
             APPSETTING_KEY=$(echo "${APPSETTING}" | awk -F, '{print $3}')
@@ -317,15 +319,15 @@ if [[ "${APP_TYPE}" == "DOTNET_CORE" || "${APP_TYPE}" == "ASP_DOTNET_CORE" ]]; t
                 continue
             fi
 
-            for APPSETTINGS_FILE in $(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json"); do
+            while IFS= read -r APPSETTINGS_FILE; do
                 if [[ "${APPSETTING_MOD}" == "by-key" ]]; then
-                    sed 's|\"'${APPSETTING_KEY}'\": *\"*[^\"]*\"*|\"'${APPSETTING_KEY}'\": \"'${APPSETTING_VAL}'\",|g' -i "${APPSETTINGS_FILE}"
+                    sed 's|\"'"${APPSETTING_KEY}"'\": *\"*[^\"]*\"*|\"'"${APPSETTING_KEY}"'\": \"'"${APPSETTING_VAL}"'\",|g' -i "${APPSETTINGS_FILE}"
                 elif [[ "${APPSETTING_MOD}" == "by-val" ]]; then
-                    sed 's|"\[*'${APPSETTING_KEY}'\]*"|"'${APPSETTING_VAL}'"|g' -i "${APPSETTINGS_FILE}"
+                    sed 's|"\[*'"${APPSETTING_KEY}"'\]*"|"'"${APPSETTING_VAL}"'"|g' -i "${APPSETTINGS_FILE}"
                 fi
                 sed 's/\,\,*/,/g' -i "${APPSETTINGS_FILE}"
-            done
-        done
+            done < <(find "${SERVICE_BINARIES_DIRECTORY}" -type f -name "appsettings*.json")
+        done < "${DEPLOYMENT_APPSETTINGS_FILE_PATH}"
     fi
 fi
 
