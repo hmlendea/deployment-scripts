@@ -11,10 +11,10 @@ APP_NAME=$(git remote -v | tail -1 | sed 's|.*/\([^/]*\)\.git.*|\1|')
 SOLUTION_DIR=$(pwd)
 
 if [ -f *.sln ]; then
-    MAIN_PROJECT_NAME=$(ls *.sln | head -n 1 | xargs cat | grep "^Project" | head -n 1 | awk -F"=" '{print $2}' | awk -F"," '{print $1}' | sed -e 's/\"*//g' -e 's/\s*//g')
+    MAIN_PROJECT_NAME=$(ls *.sln | head -n 1 | xargs cat | grep "^Project" | grep -v 'UnitTests' | head -n 1 | awk -F"=" '{print $2}' | awk -F"," '{print $1}' | sed -e 's/\"*//g' -e 's/\s*//g')
     MAIN_PROJECT_DIR="${SOLUTION_DIR}/${MAIN_PROJECT_NAME}"
 elif [ -f *.slnx ]; then
-    MAIN_PROJECT_NAME=$(ls *.slnx | head -n 1 | xargs grep -m 1 'Path=' | sed 's/.*Path="\([^"]*\)".*/\1/' | awk -F'/' '{print $1}')
+    MAIN_PROJECT_NAME=$(ls *.slnx | head -n 1 | xargs grep 'Path=' | grep -v 'UnitTests' | head -n 1 | sed 's/.*Path="\([^"]*\)".*/\1/' | awk -F'/' '{print $1}')
     MAIN_PROJECT_DIR="${SOLUTION_DIR}/${MAIN_PROJECT_NAME}"
 else
     MAIN_PROJECT_DIR="${SOLUTION_DIR}"
