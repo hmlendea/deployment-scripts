@@ -33,7 +33,7 @@ function package {
     local OUTPUT_FILE=""
     local FILES_COUNT=0
 
-    rm "${OUTPUT_DIR}"/*.pdb
+    rm -f "${OUTPUT_DIR}"/*.pdb
     FILES_COUNT=$(ls -1q "${OUTPUT_DIR}" | wc -l)
 
     if [ ${FILES_COUNT} -eq 1 ]; then
