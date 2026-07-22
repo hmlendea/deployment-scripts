@@ -80,6 +80,25 @@ function prepare {
     mkdir -p "${PUBLISH_DIR}"
 }
 
+function sanitise-data-json {
+    local ARCH="${1}"
+    local DATA_DIR="${PUBLISH_DIR}/${ARCH}/Data"
+    local SOURCE_DATA_DIR="${MAIN_PROJECT_DIR}/Data"
+
+    if [ ! -d "${DATA_DIR}" ]; then
+        return
+    fi
+
+    while IFS= read -r -d '' JSON_FILE; do
+        local SOURCE_FILE="${SOURCE_DATA_DIR}/$(basename "${JSON_FILE}")"
+
+        if git -C "${SOLUTION_DIR}" check-ignore -q "${SOURCE_FILE}" 2>/dev/null; then
+            echo "Sanitising \"${JSON_FILE}\""
+            echo '{}' > "${JSON_FILE}"
+        fi
+    done < <(find "${DATA_DIR}" -maxdepth 1 -name '*.json' -print0)
+}
+
 function cleanup {
     echo "Cleaning the build output"
     rm -rf "${PUBLISH_DIR}"
@@ -89,6 +108,7 @@ function build-release {
     local ARCH="${1}"
 
     dotnet-pub "${ARCH}"
+    sanitise-data-json "${ARCH}"
     package "${ARCH}"
 }
 
