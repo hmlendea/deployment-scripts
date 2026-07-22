@@ -80,7 +80,7 @@ function prepare {
     mkdir -p "${PUBLISH_DIR}"
 }
 
-function sanitise-data-json {
+function remove-gitignored-data-files {
     local ARCH="${1}"
     local DATA_DIR="${PUBLISH_DIR}/${ARCH}/Data"
     local SOURCE_DATA_DIR="${MAIN_PROJECT_DIR}/Data"
@@ -89,14 +89,14 @@ function sanitise-data-json {
         return
     fi
 
-    while IFS= read -r -d '' JSON_FILE; do
-        local SOURCE_FILE="${SOURCE_DATA_DIR}/$(basename "${JSON_FILE}")"
+    while IFS= read -r -d '' DATA_FILE; do
+        local SOURCE_FILE="${SOURCE_DATA_DIR}/$(basename "${DATA_FILE}")"
 
         if git -C "${SOLUTION_DIR}" check-ignore -q "${SOURCE_FILE}" 2>/dev/null; then
-            echo "Sanitising \"${JSON_FILE}\""
-            echo '{}' > "${JSON_FILE}"
+            echo "Removing gitignored data file \"${DATA_FILE}\""
+            rm "${DATA_FILE}"
         fi
-    done < <(find "${DATA_DIR}" -maxdepth 1 -name '*.json' -print0)
+    done < <(find "${DATA_DIR}" -maxdepth 1 \( -name '*.json' -o -name '*.xml' \) -print0)
 }
 
 function cleanup {
@@ -108,7 +108,7 @@ function build-release {
     local ARCH="${1}"
 
     dotnet-pub "${ARCH}"
-    sanitise-data-json "${ARCH}"
+    remove-gitignored-data-files "${ARCH}"
     package "${ARCH}"
 }
 
