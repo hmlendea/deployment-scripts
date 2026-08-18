@@ -3,7 +3,7 @@
 
 # Deployment Scripts
 
-Deployment-oriented shell scripts for Linux environments. The repository includes MonoGame SDK installers for Ubuntu virtual machines, Raspberry Pi service deployment helpers that retrieve GitHub release artefacts, and .NET release packaging scripts for multiple target runtime generations.
+Deployment-oriented shell scripts for Linux environments. The repository includes Raspberry Pi service deployment helpers that retrieve GitHub release artefacts and .NET release packaging scripts for multiple target runtime generations.
 
 ## 📑 Table of Contents
 
@@ -29,7 +29,6 @@ Deployment-oriented shell scripts for Linux environments. The repository include
 
 ## ✨ Capabilities
 
-- Install MonoGame SDK dependencies, native libraries, fonts, and tooling on Ubuntu-based virtual machines.
 - Package self-contained .NET release artefacts for Linux, macOS, and Windows from a local solution or project directory.
 - Retrieve the latest GitHub release for a service, unpack the appropriate asset for the host architecture, and launch it locally.
 - Generate and register `systemd` unit files for deployed services on Raspberry Pi or other Linux hosts.
@@ -37,7 +36,6 @@ Deployment-oriented shell scripts for Linux environments. The repository include
 
 ## 🎯 Use Cases
 
-- **MonoGame environment provisioning:** Prepare an Ubuntu VM for building or running MonoGame applications.
 - **.NET release packaging:** Produce versioned release archives or binaries for multiple runtimes from a local repository.
 - **Service deployment:** Install or update a GitHub-hosted application release on a Raspberry Pi and expose it through `systemd`.
 
@@ -58,15 +56,8 @@ sudo bash ./install-service.sh repository
 ### Examples
 
 ```bash
-# Install MonoGame 3.8.x into the current working directory
-cd monogame
-bash ./install-monogame.sh 3.8.1.303
-
-# Install the legacy MonoGame 3.6 SDK workflow
-bash ./install-monogame-3.6.sh
-
 # Deploy an ASP.NET Core release that should listen on port 8080
-cd ../raspberry-pi
+cd raspberry-pi
 bash ./start-service.sh owner/web-service 8080
 sudo bash ./install-service.sh web-service 8080
 ```
@@ -75,24 +66,20 @@ sudo bash ./install-service.sh web-service 8080
 
 | Command | Description |
 |---------|-------------|
-| `bash ./monogame/install-monogame.sh <monogame-version>` | Downloads and installs the specified MonoGame SDK release together with required Ubuntu dependencies. |
-| `bash ./monogame/install-monogame-3.6.sh` | Runs the legacy MonoGame 3.6 installation workflow. |
 | `bash ./raspberry-pi/start-service.sh <repository-or-owner/repository> [port] [args...]` | Downloads the latest compatible GitHub release asset, prepares the service directory, optionally patches `appsettings*.json`, and launches the application. |
 | `sudo bash ./raspberry-pi/install-service.sh <service-name> [args...]` | Creates or refreshes a `systemd` unit that executes `start-service.sh` for the named service. |
 | `bash ./release/dotnet/<dotnet-version>.sh <version>` | Publishes a self-contained .NET release for the runtime identifiers encoded in the selected script. |
 
 ## ⚠️ Known Limitations
 
-- The MonoGame installation scripts are tailored to Ubuntu-style environments and depend on `apt-get`, `sudo`, `wget`, `unzip`, and `make`.
 - The deployment workflow expects GitHub releases tagged as `v<version>` and Linux assets whose names either match `<repository>_<version>_<platform>.zip` or contain Linux and architecture markers.
-- `monogame/install-monogame.sh` currently does not handle font file paths containing spaces.
 - The .NET release scripts assume the current repository contains a `.sln`, `.slnx`, or `.csproj` layout that can be resolved automatically.
 
 ## 🖥️ System Requirements
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
-| Operating system | Linux | Ubuntu for MonoGame tasks; Raspberry Pi OS or another `systemd`-based Linux distribution for service deployment |
+| Operating system | Linux | Raspberry Pi OS or another `systemd`-based Linux distribution for service deployment |
 | Shell environment | Bash | Bash with `sudo` access |
 | Core utilities | `git`, `curl`, `wget`, `unzip`, `zip`, `jq`, `find`, `sed`, `awk` | Current distribution packages |
 | .NET SDK | Matching SDK for the selected release script and target project | Current supported SDK that matches the application being packaged |
@@ -104,7 +91,7 @@ sudo bash ./install-service.sh web-service 8080
 ```bash
 git clone https://github.com/hmlendea/deployment-scripts.git
 cd deployment-scripts
-chmod +x monogame/*.sh raspberry-pi/*.sh release/dotnet/*.sh
+chmod +x raspberry-pi/*.sh release/dotnet/*.sh
 ```
 
 ## ⚙️ Configuration
@@ -131,7 +118,6 @@ The subsequent settings are recognised:
 
 | Component | Supported Versions | Notes |
 |-----------|--------------------|-------|
-| MonoGame installer workflow | MonoGame 3.6 and later script-driven releases | The repository contains a dedicated legacy script for 3.6 and a parameterised installer for later versions. |
 | .NET release packaging scripts | 2.2, 3.1, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0 | Each script targets a specific packaging workflow and publishes for multiple runtime identifiers. |
 | Deployment host architectures | `x86_64`, `aarch64`, `arm` | `start-service.sh` selects `linux-x64`, `linux-arm64`, or `linux-arm` assets based on the detected CPU architecture. |
 
@@ -143,7 +129,6 @@ The repository is organised by deployment scenario rather than by programming la
 
 | Directory | Purpose |
 |-----------|---------|
-| `monogame/` | Ubuntu-oriented MonoGame SDK installation scripts, including a legacy MonoGame 3.6 workflow. |
 | `raspberry-pi/` | Service deployment and `systemd` registration scripts for Raspberry Pi and similar Linux hosts. |
 | `release/dotnet/` | Version-specific .NET release packaging scripts for generating self-contained artefacts. |
 
