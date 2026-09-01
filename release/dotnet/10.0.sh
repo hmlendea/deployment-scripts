@@ -7,6 +7,12 @@ if [ -z "${VERSION}" ]; then
     exit 1
 fi
 
+if [[ ! "${VERSION}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+    echo "ERROR: Version must be a semantic version, such as 1.2.3 or 1.2.3-beta.1" >&2
+    exit 1
+fi
+
+ASSEMBLY_VERSION="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}.0"
 APP_NAME=$(git remote -v | tail -1 | sed 's|.*/\([^/]*\)\.git.*|\1|')
 SOLUTION_DIR=$(pwd)
 
@@ -70,6 +76,9 @@ function dotnet-pub {
         --output "${OUTPUT_DIR}" \
         --self-contained true \
         /p:Version="${VERSION}" \
+        /p:AssemblyVersion="${ASSEMBLY_VERSION}" \
+        /p:FileVersion="${ASSEMBLY_VERSION}" \
+        /p:InformationalVersion="${VERSION}" \
         /p:IncludeNativeLibrariesForSelfExtract=true \
         /p:DebugType=None \
         /p:DebugSymbols=false \
