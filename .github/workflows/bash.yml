@@ -1,4 +1,4 @@
-name: Validate Bash Scripts
+name: Validation
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   syntax:
-    name: Validate Shell Syntax
+    name: Shell Syntax
     runs-on: ubuntu-latest
 
     steps:
