@@ -1,0 +1,27 @@
+name: Validate Bash Scripts
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    name: Validate Shell Syntax
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Out Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Bash Scripts
+        shell: bash
+        run: |
+          while IFS= read -r -d '' SCRIPT_FILE; do
+              bash -n "${SCRIPT_FILE}"
+          done < <(find . -type f -name '*.sh' -print0)
