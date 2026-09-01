@@ -23,6 +23,7 @@ Deployment-oriented shell scripts for Linux environments. The repository include
 - [Project Structure](#️-project-structure)
   - [Directories](#directories)
 - [Deployment](#-deployment)
+- [Continuous Integration](#-continuous-integration)
 - [Contributing](#-contributing)
 - [Project Engagement](#-project-engagement)
 - [License](#-license)
@@ -33,6 +34,7 @@ Deployment-oriented shell scripts for Linux environments. The repository include
 - Retrieve the latest GitHub release for a service, unpack the appropriate asset for the host architecture, and launch it locally.
 - Generate and register `systemd` unit files for deployed services on Raspberry Pi or other Linux hosts.
 - Apply post-deployment `appsettings*.json` substitutions for .NET and ASP.NET Core applications.
+- Validate the syntax of every shell script through GitHub Actions.
 
 ## 🎯 Use Cases
 
@@ -140,6 +142,10 @@ The deployment workflow is intended for Linux hosts that retrieve published GitH
 2. Optionally create `<DeploymentRootDirectory>/appsettings.csv` if deployed .NET applications require post-deployment configuration substitution.
 3. Run `bash ./raspberry-pi/start-service.sh owner/repository [port]` to download the latest compatible artefact, unpack it, and generate a launcher.
 4. Run `sudo bash ./raspberry-pi/install-service.sh <service-name> [args...]` to register or refresh the corresponding `systemd` service.
+
+## 🔄 Continuous Integration
+
+The [Bash syntax validation workflow](.github/workflows/bash.yml) executes `bash -n` for every `*.sh` file on pull requests, pushes to `master`, and manual dispatches.
 
 ## 🤝 Contributing
 
