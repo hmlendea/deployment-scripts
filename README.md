@@ -47,6 +47,9 @@ Deployment-oriented shell scripts for Linux environments. The repository include
 # Package a .NET release from the current solution or project directory
 bash ./release/dotnet/10.0.sh 1.2.3
 
+# Execute up to four .NET 10 runtime publishes concurrently
+PUBLISH_CONCURRENCY=4 bash ./release/dotnet/10.0.sh 1.2.3
+
 # Install or update the latest release of a GitHub-hosted service
 cd raspberry-pi
 bash ./start-service.sh owner/repository
@@ -54,6 +57,8 @@ bash ./start-service.sh owner/repository
 # Register the deployed service with systemd
 sudo bash ./install-service.sh repository
 ```
+
+The .NET 10 release script executes two runtime publishes concurrently by default. `PUBLISH_CONCURRENCY` accepts any positive integer, although values greater than the available processor and memory capacity can reduce performance.
 
 ### Examples
 
