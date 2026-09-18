@@ -53,7 +53,7 @@ MAIN_PROJECT_FILE=''
 if (( ${#SOLUTION_FILES[@]} > 0 )); then
     MAIN_PROJECT_RELATIVE_PATH="$(
         awk -F ',' '
-            /^Project/ && /\.csproj"/ && $0 !~ /UnitTests/ {
+            /^Project/ && /\.csproj"/ && $0 !~ /(UnitTests|IntegrationTests)/ {
                 project_path = $2
                 gsub(/^[[:space:]]*"|"[[:space:]]*$/, "", project_path)
                 gsub(/\\/, "/", project_path)
@@ -66,7 +66,7 @@ if (( ${#SOLUTION_FILES[@]} > 0 )); then
 elif (( ${#EXTENDED_SOLUTION_FILES[@]} > 0 )); then
     MAIN_PROJECT_RELATIVE_PATH="$(
         awk '
-            /Path="[^"]*\.csproj"/ && $0 !~ /UnitTests/ {
+            /Path="[^"]*\.csproj"/ && $0 !~ /(UnitTests|IntegrationTests)/ {
                 project_path = $0
                 sub(/^.*Path="/, "", project_path)
                 sub(/".*$/, "", project_path)
